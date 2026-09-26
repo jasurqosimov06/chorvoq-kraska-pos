@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast'
 const TYPE_LABEL: Record<string, string> = {
   sotuv: 'Sotuv', kirim: 'Tovar kirimi', xarajat: 'Xarajat', dividend: 'Dividend',
   'qarz-tolov': 'Mijoz qarzi', 'yetkazuvchi-tolov': "Yetkazuvchiga to'lov",
-  otkazma: "O'tkazma", tuzatish: 'Tuzatish',
+  otkazma: "O'tkazma", tuzatish: 'Tuzatish', qaytarish: 'Qaytarish (bekor)', vozvrat: 'Vozvrat (ta\'minotchidan)',
 }
 
 export default function Balances() {
@@ -37,7 +37,7 @@ export default function Balances() {
 
   async function saveOpening() {
     if (!s) return
-    await db.settings.put({ ...s, id: 1 })
+    await db.settings.put({ ...s, id: 1, updatedMs: Date.now() })
     toast('Boshlang\'ich qoldiqlar saqlandi', 'ok')
   }
 

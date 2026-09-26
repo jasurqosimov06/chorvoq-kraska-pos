@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
+import { db, softDelete } from '../db'
+import { useCustomers } from '../lib/data'
 import { num, som } from '../lib/format'
 import type { Customer } from '../types'
 import { Modal } from '../components/Modal'
@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast'
 const EMPTY: Customer = { name: '', phone: '', cashback: 0, debt: 0, totalSpent: 0, createdAt: 0 }
 
 export default function Customers() {
-  const customers = useLiveQuery(() => db.customers.orderBy('name').toArray(), [], [])
+  const customers = useCustomers()
   const toast = useToast()
   const [edit, setEdit] = useState<Customer | null>(null)
   const [q, setQ] = useState('')
@@ -27,7 +27,7 @@ export default function Customers() {
   async function remove(c: Customer) {
     if (!c.id) return
     if (!confirm(`"${c.name}" o'chirilsinmi?`)) return
-    await db.customers.delete(c.id)
+    await softDelete('customers', c.id)
     toast("O'chirildi", 'ok')
   }
 

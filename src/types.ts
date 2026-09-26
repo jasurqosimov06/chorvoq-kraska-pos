@@ -32,6 +32,7 @@ export interface Settings {
   openNaqd: number // boshlang'ich qoldiq (so'm)
   openPlastik: number
   openBank: number
+  updatedMs?: number // sinxron uchun
 }
 
 export interface Product {

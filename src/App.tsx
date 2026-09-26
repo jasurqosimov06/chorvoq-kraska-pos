@@ -1,7 +1,10 @@
+import { useEffect } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
 import { useSettings } from './lib/data'
 import { num } from './lib/format'
+import { useAuth, authRequired } from './lib/auth'
+import { startSync, stopSync } from './lib/sync'
 import POS from './pages/POS'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
@@ -11,32 +14,51 @@ import Customers from './pages/Customers'
 import Debts from './pages/Debts'
 import Expenses from './pages/Expenses'
 import Balances from './pages/Balances'
+import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Login from './pages/Login'
 
 const NAV = [
   { to: '/', ic: '🛒', label: 'Kassa', end: true },
-  { to: '/boshqaruv', ic: '📊', label: 'Boshqaruv' },
-  { to: '/hisob', ic: '💰', label: 'Hisob' },
-  { to: '/tovarlar', ic: '📦', label: 'Tovarlar' },
-  { to: '/kirim', ic: '📥', label: 'Kirim' },
+  { to: '/boshqaruv', ic: '📊', label: 'Boshqaruv', admin: true },
+  { to: '/hisob', ic: '💰', label: 'Hisob', admin: true },
+  { to: '/tovarlar', ic: '📦', label: 'Tovarlar', admin: true },
+  { to: '/kirim', ic: '📥', label: 'Kirim', admin: true },
   { to: '/ostatka', ic: '🗃️', label: 'Ostatka' },
   { to: '/qarzlar', ic: '💳', label: 'Qarzlar' },
-  { to: '/xarajatlar', ic: '💸', label: 'Xarajatlar' },
+  { to: '/xarajatlar', ic: '💸', label: 'Xarajatlar', admin: true },
+  { to: '/hisobotlar', ic: '📈', label: 'Hisobotlar', admin: true },
   { to: '/mijozlar', ic: '👤', label: 'Mijozlar' },
-  { to: '/sozlama', ic: '⚙️', label: 'Sozlama' },
+  { to: '/sozlama', ic: '⚙️', label: 'Sozlama', admin: true },
 ]
-
-const MOBILE_NAV = NAV
 
 const TITLES: Record<string, string> = {
   '/': 'Kassa', '/boshqaruv': 'Boshqaruv paneli', '/hisob': 'Hisob (Kassa balansi)', '/tovarlar': 'Tovarlar', '/kirim': 'Tovar kirimi',
   '/ostatka': 'Ombor qoldig\'i', '/qarzlar': 'Qarzdorlik', '/xarajatlar': 'Xarajatlar va sof foyda',
-  '/mijozlar': 'Mijozlar', '/sozlama': 'Sozlama',
+  '/hisobotlar': 'Hisobotlar', '/mijozlar': 'Mijozlar', '/sozlama': 'Sozlama',
+}
+
+function Denied() {
+  return <div className="empty">Bu bo'lim faqat administrator uchun.</div>
 }
 
 export default function App() {
   const settings = useSettings()
   const path = useLocation().pathname
+  const { ready, user, role, name, signOut } = useAuth()
+
+  useEffect(() => {
+    if (!authRequired) return
+    if (user) startSync()
+    else stopSync()
+  }, [user])
+
+  if (authRequired && !ready) return <div className="fullcenter">Yuklanmoqda…</div>
+  if (authRequired && !user) return <Login />
+
+  const isAdmin = !authRequired || role === 'admin'
+  const nav = NAV.filter((n) => isAdmin || !n.admin)
+  const guard = (el: JSX.Element, adminOnly?: boolean) => (adminOnly && !isAdmin ? <Denied /> : el)
 
   return (
     <ToastProvider>
@@ -44,38 +66,48 @@ export default function App() {
         <aside className="sidebar">
           <div className="brand">MARKA<span className="r">ZZO</span><small>DO'KON BOSHQARUVI</small></div>
           <nav className="nav">
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end}>
                 <span className="ic">{n.ic}</span> {n.label}
               </NavLink>
             ))}
           </nav>
-          <div className="sidebar-foot">v0.1 · MVP</div>
+          <div className="sidebar-foot">v0.5 · {authRequired ? (isAdmin ? 'Admin' : 'Sotuvchi') : 'Lokal'}</div>
         </aside>
 
         <div className="main">
           <header className="topbar">
             <h1>{TITLES[path] ?? 'MARKAZZO'}</h1>
-            <div className="kurs">USD kurs: <b>{num(settings.kurs)} so'm</b></div>
+            <div className="topbar-right">
+              <span className="kurs">USD: <b>{num(settings.kurs)}</b></span>
+              {authRequired && user && (
+                <div className="user-chip">
+                  <span className="uname">{name}</span>
+                  <span className={`urole ${isAdmin ? 'admin' : ''}`}>{isAdmin ? 'Admin' : 'Sotuvchi'}</span>
+                  <button className="btn sm" onClick={signOut} title="Chiqish">⎋</button>
+                </div>
+              )}
+            </div>
           </header>
           <main className="content">
             <Routes>
               <Route path="/" element={<POS />} />
-              <Route path="/boshqaruv" element={<Dashboard />} />
-              <Route path="/hisob" element={<Balances />} />
-              <Route path="/tovarlar" element={<Products />} />
-              <Route path="/kirim" element={<Purchases />} />
+              <Route path="/boshqaruv" element={guard(<Dashboard />, true)} />
+              <Route path="/hisob" element={guard(<Balances />, true)} />
+              <Route path="/tovarlar" element={guard(<Products />, true)} />
+              <Route path="/kirim" element={guard(<Purchases />, true)} />
               <Route path="/ostatka" element={<Stock />} />
               <Route path="/qarzlar" element={<Debts />} />
-              <Route path="/xarajatlar" element={<Expenses />} />
+              <Route path="/xarajatlar" element={guard(<Expenses />, true)} />
+              <Route path="/hisobotlar" element={guard(<Reports />, true)} />
               <Route path="/mijozlar" element={<Customers />} />
-              <Route path="/sozlama" element={<Settings />} />
+              <Route path="/sozlama" element={guard(<Settings />, true)} />
             </Routes>
           </main>
         </div>
 
         <nav className="mobile-nav">
-          {MOBILE_NAV.map((n) => (
+          {nav.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end}>
               <span className="ic">{n.ic}</span>
               {n.label}

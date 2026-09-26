@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
-import { useProducts, useSettings, useStockMap, useCustomers, useSuppliers, useFixedExpenses, useExpenses, useBalances } from '../lib/data'
+import { useProducts, useSettings, useStockMap, useCustomers, useSuppliers, useFixedExpenses, useExpenses, useBalances, useSales } from '../lib/data'
 import { costUzs, num, pct, som, today, monthNow, inMonth } from '../lib/format'
 import { sendTelegram } from '../lib/telegram'
 import { useToast } from '../components/Toast'
@@ -11,8 +11,8 @@ export default function Dashboard() {
   const products = useProducts()
   const stockMap = useStockMap()
   const toast = useToast()
-  const sales = useLiveQuery(() => db.sales.toArray(), [], [])
-  const lines = useLiveQuery(() => db.saleLines.toArray(), [], [])
+  const sales = useSales()
+  const lines = useLiveQuery(() => db.saleLines.filter((l) => !l.deleted).toArray(), [], [])
   const customers = useCustomers()
   const suppliers = useSuppliers()
   const fixedExp = useFixedExpenses()

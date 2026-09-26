@@ -7,42 +7,44 @@ export function useSettings() {
   return useLiveQuery(async () => (await db.settings.get(1)) ?? DEFAULT_SETTINGS, [], DEFAULT_SETTINGS)
 }
 
+const live = <T,>(x: T & { deleted?: boolean }) => !x.deleted
+
 export function useProducts() {
-  return useLiveQuery(() => db.products.orderBy('name').toArray(), [], [])
+  return useLiveQuery(() => db.products.orderBy('name').filter(live).toArray(), [], [])
 }
 
 export function useSuppliers() {
-  return useLiveQuery(() => db.suppliers.orderBy('name').toArray(), [], [])
+  return useLiveQuery(() => db.suppliers.orderBy('name').filter(live).toArray(), [], [])
 }
 
 export function useCustomers() {
-  return useLiveQuery(() => db.customers.orderBy('name').toArray(), [], [])
+  return useLiveQuery(() => db.customers.orderBy('name').filter(live).toArray(), [], [])
 }
 
 export function useFixedExpenses() {
-  return useLiveQuery(() => db.fixedExpenses.orderBy('id').toArray(), [], [])
+  return useLiveQuery(() => db.fixedExpenses.orderBy('id').filter(live).toArray(), [], [])
 }
 
 export function useExpenses() {
-  return useLiveQuery(() => db.expenses.orderBy('date').reverse().toArray(), [], [])
+  return useLiveQuery(() => db.expenses.orderBy('date').reverse().filter(live).toArray(), [], [])
 }
 
 export function useDividends() {
-  return useLiveQuery(() => db.dividends.orderBy('date').reverse().toArray(), [], [])
+  return useLiveQuery(() => db.dividends.orderBy('date').reverse().filter(live).toArray(), [], [])
 }
 
 export function useSales() {
-  return useLiveQuery(() => db.sales.toArray(), [], [])
+  return useLiveQuery(() => db.sales.filter(live).toArray(), [], [])
 }
 
 export function useLedger() {
-  return useLiveQuery(() => db.ledger.orderBy('id').reverse().toArray(), [], [])
+  return useLiveQuery(() => db.ledger.orderBy('id').reverse().filter(live).toArray(), [], [])
 }
 
 export function useBalances() {
   return useLiveQuery(async () => {
     const s = (await db.settings.get(1)) ?? DEFAULT_SETTINGS
-    const led = await db.ledger.toArray()
+    const led = (await db.ledger.toArray()).filter((l) => !l.deleted)
     const bal: Record<Account, number> = { naqd: s.openNaqd || 0, plastik: s.openPlastik || 0, bank: s.openBank || 0 }
     for (const l of led) bal[l.account] = (bal[l.account] || 0) + l.amount
     return bal
@@ -52,7 +54,9 @@ export function useBalances() {
 // productId -> { purchased, sold, stock }
 export function useStockMap() {
   return useLiveQuery(async () => {
-    const [purchases, lines] = await Promise.all([db.purchases.toArray(), db.saleLines.toArray()])
+    const [pAll, lAll] = await Promise.all([db.purchases.toArray(), db.saleLines.toArray()])
+    const purchases = pAll.filter((p) => !p.deleted)
+    const lines = lAll.filter((l) => !l.deleted)
     const m = new Map<number, { purchased: number; sold: number; stock: number }>()
     for (const p of purchases) {
       const e = m.get(p.productId) ?? { purchased: 0, sold: 0, stock: 0 }
@@ -131,6 +135,39 @@ export async function checkout(input: CheckoutInput): Promise<number> {
   })
 }
 
+// Sotuvni bekor qilish / qaytarish (ombor, pul, qarz/keshbek avtomatik tiklanadi)
+export async function returnSale(saleId: number): Promise<void> {
+  await db.transaction('rw', [db.sales, db.saleLines, db.customers, db.ledger], async () => {
+    const sale = await db.sales.get(saleId)
+    if (!sale || (sale as any).deleted) return
+    // sotuv qatorlarini yumshoq o'chirish → ombor tiklanadi
+    const lines = await db.saleLines.where('saleId').equals(saleId).toArray()
+    for (const l of lines) if (l.id) await db.saleLines.update(l.id, { deleted: true } as any)
+    // sotuvni yumshoq o'chirish → tushum/foyda hisobidan chiqadi
+    await db.sales.update(saleId, { deleted: true } as any)
+    // pulni qaytarish (kassadan chiqim, teskari ledger)
+    if ((sale.paid || 0) > 0) {
+      const acc: Account = sale.paymentMethod === 'Plastik' ? 'plastik' : sale.paymentMethod === 'Bank' ? 'bank' : 'naqd'
+      await db.ledger.add({
+        date: today(), account: acc, amount: -sale.paid, type: 'qaytarish',
+        note: `Qaytarish: chek ${sale.number}`, createdAt: Date.now(),
+      })
+    }
+    // mijoz: qarz va keshbekni teskari
+    if (sale.customerId) {
+      const c = await db.customers.get(sale.customerId)
+      if (c) {
+        const payable = (sale.total || 0) - (sale.cashbackUsed || 0)
+        await db.customers.update(sale.customerId, {
+          debt: Math.max(0, (c.debt || 0) - (sale.debt || 0)),
+          cashback: Math.max(0, (c.cashback || 0) - (sale.cashbackEarned || 0) + (sale.cashbackUsed || 0)),
+          totalSpent: Math.max(0, (c.totalSpent || 0) - payable),
+        })
+      }
+    }
+  })
+}
+
 // Yetkazib beruvchidan tovar qabul qilish (ombor + qarz + kassadan chiqim)
 export async function addPurchase(p: {
   date: string; productId: number; qty: number; costUsd: number; kurs: number
@@ -151,6 +188,32 @@ export async function addPurchase(p: {
     }
     if (paid > 0) {
       await db.ledger.add({ date: p.date, account: p.account, amount: -paid, type: 'kirim', note: `Kirim: ${p.supplierName}`, createdAt: Date.now() })
+    }
+  })
+}
+
+// Ta'minotchiga qaytarish (vozvrat): ombordan chiqadi, qarz kamayadi yoki pul qaytadi
+export async function returnToSupplier(p: {
+  date: string; productId: number; qty: number; costUsd: number; kurs: number
+  supplierId: number | null; supplierName: string; mode: 'debt' | 'cash'; account: Account
+}): Promise<void> {
+  const amount = Math.abs(p.qty) * p.costUsd * p.kurs
+  await db.transaction('rw', db.purchases, db.suppliers, db.ledger, async () => {
+    // manfiy miqdorli kirim yozuvi → ombor qoldig'i kamayadi
+    await db.purchases.add({
+      date: p.date, productId: p.productId, qty: -Math.abs(p.qty), costUsd: p.costUsd, kurs: p.kurs,
+      supplier: p.supplierName + ' (vozvrat)', supplierId: p.supplierId,
+      paidUzs: p.mode === 'cash' ? -amount : 0, createdAt: Date.now(),
+    })
+    if (p.mode === 'debt') {
+      // qarzdan chegirish
+      if (p.supplierId) {
+        const s = await db.suppliers.get(p.supplierId)
+        if (s) await db.suppliers.update(p.supplierId, { debt: Math.max(0, (s.debt || 0) - amount) })
+      }
+    } else {
+      // pul qaytarildi → hisobga kirim
+      await db.ledger.add({ date: p.date, account: p.account, amount, type: 'vozvrat', note: `Vozvrat: ${p.supplierName}`, createdAt: Date.now() })
     }
   })
 }

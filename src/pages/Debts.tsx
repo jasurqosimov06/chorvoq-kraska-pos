@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { useCustomers, useSuppliers, payCustomerDebt, paySupplierDebt } from '../lib/data'
-import { som } from '../lib/format'
+import { som, num } from '../lib/format'
 import { Modal } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { ACCOUNTS, type Account, type Supplier } from '../types'
@@ -17,6 +18,10 @@ export default function Debts() {
   const [amount, setAmount] = useState<number | ''>('')
   const [payAccount, setPayAccount] = useState<Account>('naqd')
   const [editSup, setEditSup] = useState<Supplier | null>(null)
+  const [historySup, setHistorySup] = useState<Supplier | null>(null)
+  const supPayments = useLiveQuery(() => db.payments.filter((p) => p.kind === 'supplier' && !p.deleted).toArray(), [], [])
+  const supHistory = historySup ? supPayments.filter((p) => p.partyId === historySup.id).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : []
+  const supHistoryTotal = supHistory.reduce((s, p) => s + (p.amount || 0), 0)
 
   const debtors = customers.filter((c) => (c.debt || 0) > 0)
   const totalReceivable = debtors.reduce((s, c) => s + (c.debt || 0), 0)
@@ -85,7 +90,8 @@ export default function Debts() {
                   <td><b>{s.name}</b></td>
                   <td>{s.phone}</td>
                   <td className="num">{(s.debt || 0) > 0 ? <b style={{ color: 'var(--brand)' }}>{som(s.debt)}</b> : '—'}</td>
-                  <td className="num">
+                  <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn sm" onClick={() => setHistorySup(s)}>🕘 Tarix</button>{' '}
                     <button className="btn sm" onClick={() => setEditSup({ ...s })}>✏️</button>{' '}
                     {(s.debt || 0) > 0 && <button className="btn sm primary" onClick={() => { setPay({ kind: 'supplier', id: s.id!, name: s.name, max: s.debt }); setAmount(s.debt) }}>To'lov qilish</button>}
                   </td>
@@ -107,6 +113,30 @@ export default function Debts() {
           <div className="field"><label>To'lov summasi (so'm)</label><input className="input" type="number" autoFocus value={amount} onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : '')} /></div>
           <div className="field"><label>{pay.kind === 'customer' ? 'Qaysi hisobga tushdi' : 'Qaysi hisobdan'}</label>
             <select className="input" value={payAccount} onChange={(e) => setPayAccount(e.target.value as Account)}>{ACCOUNTS.map((a) => <option key={a.key} value={a.key}>{a.ic} {a.label}</option>)}</select>
+          </div>
+        </Modal>
+      )}
+
+      {historySup && (
+        <Modal title={`🕘 To'lovlar tarixi — ${historySup.name}`} onClose={() => setHistorySup(null)} wide>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
+            <span>Joriy qarz: <b style={{ color: 'var(--brand)' }}>{som(historySup.debt || 0)}</b></span>
+            <span>Jami to'langan: <b style={{ color: 'var(--green)' }}>{som(supHistoryTotal)}</b></span>
+          </div>
+          <div className="table-wrap" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+            <table>
+              <thead><tr><th>Sana</th><th>Izoh</th><th className="num">Summa</th></tr></thead>
+              <tbody>
+                {supHistory.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.date} {new Date(p.createdAt).toTimeString().slice(0, 5)}</td>
+                    <td>{p.note}</td>
+                    <td className="num" style={{ color: 'var(--green)', fontWeight: 700 }}>−{num(p.amount)}</td>
+                  </tr>
+                ))}
+                {supHistory.length === 0 && <tr><td colSpan={3} className="empty">Hali to'lov qilinmagan</td></tr>}
+              </tbody>
+            </table>
           </div>
         </Modal>
       )}

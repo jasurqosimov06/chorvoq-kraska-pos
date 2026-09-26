@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { db } from '../db'
+import { db, softDelete } from '../db'
 import { useProducts, useSettings, useStockMap } from '../lib/data'
 import { costUzs, marja, num, pct, usd } from '../lib/format'
 import { CATEGORIES, UNITS, type Product } from '../types'
@@ -77,7 +77,7 @@ export default function Products() {
   async function remove(p: Product) {
     if (!p.id) return
     if (!confirm(`"${p.name}" o'chirilsinmi?`)) return
-    await db.products.delete(p.id)
+    await softDelete('products', p.id)
     toast("O'chirildi", 'ok')
   }
 
@@ -155,10 +155,9 @@ export default function Products() {
                 <button className="btn sm" onClick={() => setScanField(true)}>📷</button>
               </div>
             </div>
-            <div className="field"><label>Kategoriya</label>
-              <select className="input" value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })}>
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
+            <div className="field"><label>Kategoriya (papka)</label>
+              <input className="input" list="cat-list" value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="masalan: Emulsiyalar" />
+              <datalist id="cat-list">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
             <div className="field"><label>Brend</label><input className="input" value={edit.brand} onChange={(e) => setEdit({ ...edit, brand: e.target.value })} /></div>
             <div className="field"><label>Hajm/O'lchov</label><input className="input" value={edit.size} onChange={(e) => setEdit({ ...edit, size: e.target.value })} placeholder="15 kg" /></div>

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { db } from '../db'
-import { useProducts, useSettings, useStockMap, checkout } from '../lib/data'
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useProducts, useSettings, useStockMap, useCustomers, useSales, checkout, returnSale } from '../lib/data'
 import { costUzs, num, som } from '../lib/format'
 import type { Account, CartLine, Product } from '../types'
 import { ScannerModal } from '../components/ScannerModal'
@@ -13,10 +12,11 @@ export default function POS() {
   const products = useProducts()
   const stockMap = useStockMap()
   const settings = useSettings()
-  const customers = useLiveQuery(() => db.customers.orderBy('name').toArray(), [], [])
+  const customers = useCustomers()
   const toast = useToast()
 
   const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
   const [scan, setScan] = useState(false)
   const [customerId, setCustomerId] = useState<number | null>(null)
@@ -24,16 +24,38 @@ export default function POS() {
   const [useCashback, setUseCashback] = useState(false)
   const [paid, setPaid] = useState<number | ''>('')
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  const [showSales, setShowSales] = useState(false)
+  const [salesPeriod, setSalesPeriod] = useState<'kun' | 'hafta' | 'oy' | 'hammasi'>('oy')
+  const sales = useSales()
+  const recentSales = useMemo(() => {
+    const d = new Date()
+    if (salesPeriod === 'hafta') d.setDate(d.getDate() - 7)
+    else if (salesPeriod === 'oy') d.setDate(d.getDate() - 30)
+    const p = (x: number) => String(x).padStart(2, '0')
+    const cutoff = salesPeriod === 'hammasi' ? '' : `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+    return [...sales]
+      .filter((s) => !cutoff || s.date >= cutoff)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 1000)
+  }, [sales, salesPeriod])
+  const recentTotal = useMemo(() => recentSales.reduce((s, x) => s + (x.total || 0), 0), [recentSales])
 
   const stockOf = (id?: number) => (id ? stockMap.get(id)?.stock ?? 0 : 0)
 
+  const cats = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of products) if (p.category) m.set(p.category, (m.get(p.category) || 0) + 1)
+    return Array.from(m.entries()) // [category, count]
+  }, [products])
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    if (!s) return products
     return products.filter(
-      (p) => p.name.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s) || p.barcode.includes(s),
+      (p) =>
+        (!cat || p.category === cat) &&
+        (!s || p.name.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s) || p.barcode.includes(s)),
     )
-  }, [products, q])
+  }, [products, q, cat])
 
   function addProduct(p: Product) {
     if (!p.id) return
@@ -86,6 +108,10 @@ export default function POS() {
     )
   }
 
+  function setPrice(id: number, value: number) {
+    setCart((prev) => prev.map((l) => (l.productId === id ? { ...l, price: Math.max(0, value) } : l)))
+  }
+
   function removeLine(id: number) {
     setCart((prev) => prev.filter((l) => l.productId !== id))
   }
@@ -133,6 +159,36 @@ export default function POS() {
     }
   }
 
+  async function openReceipt(s: any) {
+    const lines = (await db.saleLines.where('saleId').equals(s.id).toArray()).filter((l) => !l.deleted)
+    setReceipt({
+      shopName: settings.shopName,
+      number: s.number,
+      date: s.date,
+      time: new Date(s.createdAt).toTimeString().slice(0, 5),
+      lines: lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+      total: s.total || 0,
+      cashbackUsed: s.cashbackUsed || 0,
+      cashbackEarned: s.cashbackEarned || 0,
+      payable: (s.total || 0) - (s.cashbackUsed || 0),
+      paid: s.paid || 0,
+      debt: s.debt || 0,
+      paymentMethod: s.paymentMethod,
+      customerName: customers.find((c) => c.id === s.customerId)?.name,
+    })
+    setShowSales(false)
+  }
+
+  async function doReturn(saleId: number, number: string) {
+    if (!confirm(`Chek ${number} bekor qilinsinmi? Tovar omborga qaytadi, pul kassadan chiqadi.`)) return
+    try {
+      await returnSale(saleId)
+      toast('Sotuv qaytarildi', 'ok')
+    } catch (e: any) {
+      toast('Xatolik: ' + (e?.message ?? ''), 'err')
+    }
+  }
+
   return (
     <div className="pos">
       <div className="pos-left">
@@ -144,8 +200,17 @@ export default function POS() {
             onChange={(e) => setQ(e.target.value)}
             autoFocus
           />
+          <button className="btn" onClick={() => setShowSales(true)}>🧾 Cheklar</button>
           <button className="btn primary" onClick={() => setScan(true)}>📷 Skaner</button>
         </div>
+        {cats.length > 0 && (
+          <div className="cat-chips">
+            <button className={`chip ${cat === '' ? 'on' : ''}`} onClick={() => setCat('')}>Hammasi ({products.length})</button>
+            {cats.map(([c, n]) => (
+              <button key={c} className={`chip ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>{c} ({n})</button>
+            ))}
+          </div>
+        )}
         <div className="pos-grid">
           {filtered.map((p) => {
             const st = stockOf(p.id)
@@ -182,7 +247,17 @@ export default function POS() {
                   <span>{l.qty}</span>
                   <button onClick={() => setQty(l.productId, 1)}>+</button>
                 </div>
-                <b>{num(l.price * l.qty)} so'm</b>
+                <div className="cline-price">
+                  <input
+                    className="price-inp"
+                    type="number"
+                    value={l.price}
+                    onChange={(e) => setPrice(l.productId, Number(e.target.value))}
+                    title="Narxni qo'lda o'zgartirish"
+                  />
+                  <span className="cline-x">×{l.qty}</span>
+                </div>
+                <b>{num(l.price * l.qty)}</b>
               </div>
             </div>
           ))}
@@ -225,13 +300,46 @@ export default function POS() {
 
       {scan && <ScannerModal onDetected={onScan} onClose={() => setScan(false)} />}
 
+      {showSales && (
+        <Modal title="Cheklar — ko'rish / qaytarish" onClose={() => setShowSales(false)} wide>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+            <div className="pill-toggle">
+              {([['kun', 'Bugun'], ['hafta', '1 hafta'], ['oy', '1 oy'], ['hammasi', 'Hammasi']] as const).map(([k, l]) => (
+                <button key={k} className={salesPeriod === k ? 'on' : ''} onClick={() => setSalesPeriod(k)}>{l}</button>
+              ))}
+            </div>
+            <span style={{ fontSize: 14 }}>{recentSales.length} ta chek · <b>{som(recentTotal)}</b></span>
+          </div>
+          <div className="table-wrap" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+            <table>
+              <thead><tr><th>Vaqt</th><th>Chek №</th><th>To'lov</th><th className="num">Summa</th><th></th></tr></thead>
+              <tbody>
+                {recentSales.map((s) => (
+                  <tr key={s.id} onClick={() => openReceipt(s)} style={{ cursor: 'pointer' }}>
+                    <td>{s.date} {new Date(s.createdAt).toTimeString().slice(0, 5)}</td>
+                    <td>{s.number}</td>
+                    <td>{s.paymentMethod}{s.debt > 0 ? ' (qarz)' : ''}</td>
+                    <td className="num">{num(s.total)}</td>
+                    <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                      <button className="btn sm" onClick={(e) => { e.stopPropagation(); openReceipt(s) }}>👁 Ko'rish</button>{' '}
+                      <button className="btn sm danger" onClick={(e) => { e.stopPropagation(); doReturn(s.id!, s.number) }}>↩ Qaytarish</button>
+                    </td>
+                  </tr>
+                ))}
+                {recentSales.length === 0 && <tr><td colSpan={5} className="empty">Hali sotuv yo'q</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
+
       {receipt && (
         <Modal
-          title="✅ Sotuv yakunlandi"
+          title={`🧾 Chek № ${receipt.number}`}
           onClose={() => setReceipt(null)}
           footer={
             <>
-              <button className="btn" onClick={() => setReceipt(null)}>Yangi sotuv</button>
+              <button className="btn" onClick={() => setReceipt(null)}>Yopish</button>
               <button className="btn primary" onClick={() => printReceipt(receipt)}>🖨 Chekni chop etish</button>
             </>
           }

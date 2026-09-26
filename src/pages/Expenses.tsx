@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { db } from '../db'
+import { db, softDelete } from '../db'
 import { useFixedExpenses, useExpenses, useDividends, useSales, addExpense, addDividend as addDividendTx } from '../lib/data'
 import { som, num, today, monthNow, monthLabel, inMonth } from '../lib/format'
 import { EXPENSE_CATS, ACCOUNTS, type Account, type FixedExpense } from '../types'
@@ -59,7 +59,7 @@ export default function Expenses() {
   async function delFixed(id?: number) {
     if (!id) return
     if (!confirm("O'chirilsinmi?")) return
-    await db.fixedExpenses.delete(id)
+    await softDelete('fixedExpenses', id)
   }
   async function toggleFixed(f: FixedExpense) {
     await db.fixedExpenses.update(f.id!, { active: !f.active })
@@ -73,7 +73,7 @@ export default function Expenses() {
   }
   async function delVariable(id?: number) {
     if (!id) return
-    await db.expenses.delete(id)
+    await softDelete('expenses', id)
   }
 
   async function addDividend() {
@@ -84,7 +84,7 @@ export default function Expenses() {
   }
   async function delDividend(id?: number) {
     if (!id) return
-    await db.dividends.delete(id)
+    await softDelete('dividends', id)
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { db, DEFAULT_SETTINGS, ensureSeed } from '../db'
+import { db, DEFAULT_SETTINGS, seedData } from '../db'
 import { getSettings } from '../db'
 import type { Settings as S } from '../types'
 import { sendTelegram } from '../lib/telegram'
@@ -12,7 +12,7 @@ export default function Settings() {
   useEffect(() => { getSettings().then(setS) }, [])
 
   async function save() {
-    await db.settings.put({ ...s, id: 1 })
+    await db.settings.put({ ...s, id: 1, updatedMs: Date.now() })
     toast('Sozlamalar saqlandi', 'ok')
   }
 
@@ -75,7 +75,7 @@ export default function Settings() {
     await db.transaction('rw', [db.settings, db.products, db.purchases, db.customers, db.sales, db.saleLines, db.suppliers, db.payments, db.fixedExpenses, db.expenses, db.dividends, db.ledger], async () => {
       await Promise.all([db.settings.clear(), db.products.clear(), db.purchases.clear(), db.customers.clear(), db.sales.clear(), db.saleLines.clear(), db.suppliers.clear(), db.payments.clear(), db.fixedExpenses.clear(), db.expenses.clear(), db.dividends.clear(), db.ledger.clear()])
     })
-    await ensureSeed()
+    await seedData()
     toast('Tizim tozalandi', 'ok')
     getSettings().then(setS)
   }

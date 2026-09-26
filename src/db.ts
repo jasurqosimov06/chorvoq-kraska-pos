@@ -1,50 +1,99 @@
 import Dexie, { type Table } from 'dexie'
 import type { Settings, Product, Purchase, Customer, Sale, SaleLine, Supplier, Payment, FixedExpense, Expense, Dividend, Ledger } from './types'
 
+// Sinxron uchun har yozuvga qo'shiladigan maydonlar
+export type Syncable = { updatedMs?: number; deleted?: boolean }
+
+export type SProduct = Product & Syncable
+export type SPurchase = Purchase & Syncable
+export type SCustomer = Customer & Syncable
+export type SSale = Sale & Syncable
+export type SSaleLine = SaleLine & Syncable
+export type SSupplier = Supplier & Syncable
+export type SPayment = Payment & Syncable
+export type SFixedExpense = FixedExpense & Syncable
+export type SExpense = Expense & Syncable
+export type SDividend = Dividend & Syncable
+export type SLedger = Ledger & Syncable
+
+// Global noyob ID (offline ham to'qnashmaydi)
+export function genId(): number {
+  return Math.floor(Math.random() * 9007199254740991)
+}
+
+// Sinxron bulutdan yozayotganda hooklar updatedMs ni bosib ketmasligi uchun bayroq
+let applyingRemote = false
+export function setApplyingRemote(v: boolean) { applyingRemote = v }
+
+// Sinxronlanadigan raqamli-id jadvallar
+export const SYNC_TABLES = [
+  'products', 'purchases', 'customers', 'suppliers', 'sales', 'sale_lines',
+  'payments', 'fixed_expenses', 'expenses', 'dividends', 'ledger',
+] as const
+
+// Dexie jadval nomi ↔ bulut jadval nomi
+export const TABLE_MAP: Record<string, string> = {
+  products: 'products', purchases: 'purchases', customers: 'customers', suppliers: 'suppliers',
+  sales: 'sales', saleLines: 'sale_lines', payments: 'payments', fixedExpenses: 'fixed_expenses',
+  expenses: 'expenses', dividends: 'dividends', ledger: 'ledger',
+}
+
 export class MarkazzoDB extends Dexie {
   settings!: Table<Settings, number>
-  products!: Table<Product, number>
-  purchases!: Table<Purchase, number>
-  customers!: Table<Customer, number>
-  sales!: Table<Sale, number>
-  saleLines!: Table<SaleLine, number>
-  suppliers!: Table<Supplier, number>
-  payments!: Table<Payment, number>
-  fixedExpenses!: Table<FixedExpense, number>
-  expenses!: Table<Expense, number>
-  dividends!: Table<Dividend, number>
-  ledger!: Table<Ledger, number>
+  products!: Table<SProduct, number>
+  purchases!: Table<SPurchase, number>
+  customers!: Table<SCustomer, number>
+  sales!: Table<SSale, number>
+  saleLines!: Table<SSaleLine, number>
+  suppliers!: Table<SSupplier, number>
+  payments!: Table<SPayment, number>
+  fixedExpenses!: Table<SFixedExpense, number>
+  expenses!: Table<SExpense, number>
+  dividends!: Table<SDividend, number>
+  ledger!: Table<SLedger, number>
 
   constructor() {
-    super('markazzo')
+    // Baza nomi (sxema o'zgarganda toza boshlash uchun)
+    super('markazzo_c2')
     this.version(1).stores({
       settings: 'id',
-      products: '++id, barcode, sku, name, category',
-      purchases: '++id, productId, date',
-      customers: '++id, phone, name',
-      sales: '++id, date, number, customerId',
-      saleLines: '++id, saleId, productId',
+      products: 'id, barcode, sku, name, category',
+      purchases: 'id, productId, date, supplierId',
+      customers: 'id, phone, name',
+      sales: 'id, date, number, customerId',
+      saleLines: 'id, saleId, productId',
+      suppliers: 'id, name, phone',
+      payments: 'id, partyId, kind, date',
+      fixedExpenses: 'id, name',
+      expenses: 'id, date, category',
+      dividends: 'id, date',
+      ledger: 'id, date, account, type',
     })
-    // v2: qarzdorlik + yetkazib beruvchi + to'lovlar
-    this.version(2).stores({
-      suppliers: '++id, name, phone',
-      payments: '++id, partyId, kind, date',
-      purchases: '++id, productId, date, supplierId',
-    })
-    // v3: xarajatlar + dividend
-    this.version(3).stores({
-      fixedExpenses: '++id, name',
-      expenses: '++id, date, category',
-      dividends: '++id, date',
-    })
-    // v4: hisoblar (naqd/plastik/bank) — kassa harakati
-    this.version(4).stores({
-      ledger: '++id, date, account, type',
-    })
+
+    const dataTables = ['products', 'purchases', 'customers', 'suppliers', 'sales', 'saleLines',
+      'payments', 'fixedExpenses', 'expenses', 'dividends', 'ledger']
+    for (const name of dataTables) {
+      const tbl = (this as any)[name] as Table<any, number>
+      tbl.hook('creating', (_pk: any, obj: any) => {
+        if (obj.id == null) obj.id = genId()
+        if (obj.deleted == null) obj.deleted = false
+        if (!applyingRemote) obj.updatedMs = Date.now()
+        else if (obj.updatedMs == null) obj.updatedMs = Date.now()
+      })
+      tbl.hook('updating', (_mods: any) => {
+        if (!applyingRemote) return { updatedMs: Date.now() }
+        return undefined
+      })
+    }
   }
 }
 
 export const db = new MarkazzoDB()
+
+// Yumshoq o'chirish (sinxron uchun) — haqiqiy o'chirish o'rniga
+export async function softDelete(table: string, id: number) {
+  await (db as any)[table].update(id, { deleted: true })
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 1,
@@ -82,36 +131,37 @@ const SEED: Array<[string, string, string, string, string, string, string, strin
   ['Malyar lenta', 'LN001', '4780001000202', 'Malyar lenta 48mm x 40m', 'Lenta / Plyonka', 'Blue Dolphin', '48mm', 'dona', 1.1, 21000, 90],
 ]
 
-export async function ensureSeed() {
+// Namuna uchun barqaror (deterministik) ID — takrorlanmaslik uchun (upsert)
+const SEED_PID_BASE = 900_000_000_000_000
+const SEED_KID_BASE = 900_000_000_000_100
+
+// Namuna ma'lumot yuklash (lokal). Sinxron rejimda faqat bulut bo'sh bo'lsa chaqiriladi.
+export async function seedData() {
+  const count = await db.products.count()
+  if (count > 0) return
+  const now = Date.now()
+  const today = new Date().toISOString().slice(0, 10)
+  const products: SProduct[] = []
+  const purchases: SPurchase[] = []
+  SEED.forEach(([family, sku, barcode, name, category, brand, size, unit, costUsd, priceUzs, startQty], i) => {
+    const pid = SEED_PID_BASE + i
+    products.push({ id: pid, family, barcode, sku, name, category, brand, unit, size, costUsd, priceUzs, imageData: '', createdAt: now } as SProduct)
+    if (startQty > 0) {
+      const summa = startQty * costUsd * DEFAULT_SETTINGS.kurs
+      purchases.push({
+        id: SEED_KID_BASE + i, date: today, productId: pid, qty: startQty, costUsd,
+        kurs: DEFAULT_SETTINGS.kurs, supplier: "Boshlang'ich qoldiq", supplierId: null,
+        paidUzs: summa, createdAt: now,
+      } as SPurchase)
+    }
+  })
+  await db.products.bulkPut(products)
+  await db.purchases.bulkPut(purchases)
+}
+
+export async function ensureSettings() {
   const s = await db.settings.get(1)
   if (!s) await db.settings.put(DEFAULT_SETTINGS)
-  const count = await db.products.count()
-  if (count === 0) {
-    const now = Date.now()
-    const today = new Date().toISOString().slice(0, 10)
-    for (const [family, sku, barcode, name, category, brand, size, unit, costUsd, priceUzs, startQty] of SEED) {
-      const pid = (await db.products.add({
-        family, barcode, sku, name, category, brand, unit, size, costUsd, priceUzs, imageData: '', createdAt: now,
-      })) as number
-      if (startQty > 0) {
-        const summa = startQty * costUsd * DEFAULT_SETTINGS.kurs
-        await db.purchases.add({
-          date: today, productId: pid, qty: startQty, costUsd,
-          kurs: DEFAULT_SETTINGS.kurs, supplier: "Boshlang'ich qoldiq", supplierId: null,
-          paidUzs: summa, createdAt: now,
-        })
-      }
-    }
-    // namuna doimiy (o'zgarmas) oylik xarajatlar
-    const fixed: Array<[string, number]> = [
-      ["Do'kon arendasi", 3000000],
-      ['Kommunal (svet, suv, gaz)', 800000],
-      ['Ishchi oyligi', 4000000],
-    ]
-    for (const [name, amount] of fixed) {
-      await db.fixedExpenses.add({ name, amount, active: true, note: '', createdAt: now })
-    }
-  }
 }
 
 export async function getSettings(): Promise<Settings> {
