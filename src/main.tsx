@@ -9,6 +9,7 @@ import { supabaseEnabled } from './lib/supabase'
 import { checkout, addPurchase, payCustomerDebt, paySupplierDebt, addExpense, addDividend, transferMoney, adjustAccount } from './lib/data'
 import { supabase } from './lib/supabase'
 import { pushAll, pullAll } from './lib/sync'
+import { applyBrand, brand } from './brand'
 
 // dev-only debug handle (excluded from production build)
 if (import.meta.env.DEV) {
@@ -16,10 +17,11 @@ if (import.meta.env.DEV) {
 }
 
 async function boot() {
+  applyBrand()
   await ensureSettings()
   // Lokal rejim (Supabase yo'q): darhol namuna yuklaymiz.
   // Sinxron rejimda esa namuna bulut bo'sh bo'lganда, kirgandan keyin yuklanadi.
-  if (!supabaseEnabled) await seedData()
+  if (!supabaseEnabled && brand.seedDemo) await seedData()
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <BrowserRouter>

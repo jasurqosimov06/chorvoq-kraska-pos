@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
+import { brand } from '../brand'
 
 export default function Login() {
   const { signIn, signUp } = useAuth()
@@ -22,7 +23,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-brand">MARKA<span className="r">ZZO</span></div>
+        <div className="login-brand">{brand.namePlain}<span className="r">{brand.nameHighlight}</span></div>
         <div className="login-sub">Do'kon boshqaruvi</div>
         <h2>{mode === 'in' ? 'Tizimga kirish' : "Ro'yxatdan o'tish"}</h2>
         {mode === 'up' && (

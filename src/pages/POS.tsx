@@ -7,6 +7,7 @@ import { ScannerModal } from '../components/ScannerModal'
 import { Modal } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { printReceipt, type ReceiptData } from '../lib/receipt'
+import { brand } from '../brand'
 
 export default function POS() {
   const products = useProducts()
@@ -346,7 +347,7 @@ export default function POS() {
         >
           <div className="receipt">
             <div className="center big">{receipt.shopName}</div>
-            <div className="center">Kraska va dekorativ qoplamalar</div>
+            <div className="center">{brand.tagline}</div>
             <hr />
             <div className="r"><span>Chek №</span><span>{receipt.number}</span></div>
             <div className="r"><span>Sana</span><span>{receipt.date} {receipt.time}</span></div>

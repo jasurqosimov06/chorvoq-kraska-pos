@@ -1,4 +1,5 @@
 import { num, som } from './format'
+import { brand } from '../brand'
 
 export interface ReceiptData {
   shopName: string
@@ -25,7 +26,7 @@ export function buildReceiptHtml(r: ReceiptData): string {
     .join('')
   return `<div class="receipt">
     <div class="center big">${escapeHtml(r.shopName)}</div>
-    <div class="center">Kraska va dekorativ qoplamalar</div>
+    <div class="center">${escapeHtml(brand.tagline)}</div>
     <hr/>
     <div class="r"><span>Chek №</span><span>${r.number}</span></div>
     <div class="r"><span>Sana</span><span>${r.date} ${r.time}</span></div>

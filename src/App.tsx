@@ -17,6 +17,7 @@ import Balances from './pages/Balances'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
+import { brand } from './brand'
 
 const NAV = [
   { to: '/', ic: '🛒', label: 'Kassa', end: true },
@@ -64,7 +65,7 @@ export default function App() {
     <ToastProvider>
       <div className="app">
         <aside className="sidebar">
-          <div className="brand">MARKA<span className="r">ZZO</span><small>DO'KON BOSHQARUVI</small></div>
+          <div className="brand">{brand.namePlain}<span className="r">{brand.nameHighlight}</span><small>DO'KON BOSHQARUVI</small></div>
           <nav className="nav">
             {nav.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end}>
@@ -77,7 +78,7 @@ export default function App() {
 
         <div className="main">
           <header className="topbar">
-            <h1>{TITLES[path] ?? 'MARKAZZO'}</h1>
+            <h1>{TITLES[path] ?? brand.name}</h1>
             <div className="topbar-right">
               <span className="kurs">USD: <b>{num(settings.kurs)}</b></span>
               {authRequired && user && (

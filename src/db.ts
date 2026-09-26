@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { brand } from './brand'
 import type { Settings, Product, Purchase, Customer, Sale, SaleLine, Supplier, Payment, FixedExpense, Expense, Dividend, Ledger } from './types'
 
 // Sinxron uchun har yozuvga qo'shiladigan maydonlar
@@ -54,7 +55,7 @@ export class MarkazzoDB extends Dexie {
 
   constructor() {
     // Baza nomi (sxema o'zgarganda toza boshlash uchun)
-    super('markazzo_c2')
+    super(brand.dbName)
     this.version(1).stores({
       settings: 'id',
       products: 'id, barcode, sku, name, category',
@@ -97,7 +98,7 @@ export async function softDelete(table: string, id: number) {
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 1,
-  shopName: 'MARKAZZO',
+  shopName: brand.name,
   kurs: 12650,
   lowStockLimit: 5,
   cashbackPercent: 2,

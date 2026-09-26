@@ -1,18 +1,19 @@
-# MARKAZZO POS / ERP
+# YANGI BREND POS / ERP
 
-Kraska va dekorativ qoplama do'koni uchun Billz uslubidagi POS/ERP web-ilova.
-Jonli: https://markazzo-pos.vercel.app
+MARKAZZO POS/ERP'ning alohida nusxasi (boshqa do'kon, boshqa brend).
+MUHIM: MARKAZZO (~/Projects/markazzo-pos, markazzo-pos.vercel.app, uning Supabase'i) ga HECH QACHON tegilmaydi.
+Bu loyiha o'z GitHub repo, o'z Supabase va o'z Vercel loyihasiga ega bo'lishi shart — Markazzo kalitlarini bu yerga qo'ymang.
 
 ## Stek
 - React 18 + TypeScript + Vite, react-router
-- Local-first: Dexie (IndexedDB, baza nomi `markazzo_c1`) → Supabase bilan sinxron (`src/lib/sync.ts`: push 4s / pull 20s + realtime)
+- Local-first: Dexie (IndexedDB, baza nomi `VITE_DB_NAME`, standart `yangi_brend_c1`) → Supabase bilan sinxron (`src/lib/sync.ts`: push 4s / pull 20s + realtime)
 - Supabase: auth + Postgres, sxema `supabase/schema.sql` (bigint id, `updated_ms`/`deleted` sinxron ustunlari, RLS, profiles+rollar)
 - Deploy: Vercel (env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
 
 ## Ishga tushirish (yangi kompyuterda)
 1. `.env.example` → `.env.local` nusxa, Supabase kalitlarini kiriting (git'ga yuklanmaydi)
 2. `npm install`
-3. `npm run dev` → http://localhost:5173
+3. `npm run dev` → http://localhost:5174 (Markazzo 5173 bilan to'qnashmasligi uchun)
 4. Build: `npm run build` (0 xato bo'lishi shart)
 
 ## Tuzilma
@@ -36,5 +37,7 @@ v0.2 qarzlar · v0.3 xarajatlar/sof foyda/dividend · v0.4 hisoblar/ledger · v0
 v0.6 narxni qo'lda o'zgartirish, sotuvni qaytarish · v0.7 mobil overflow · v0.8 chekni ko'rish ·
 v0.9 Hisobotlar + Excel eksport · v0.10 ta'minotchiga vozvrat
 
-## Reja
-- Brendni sozlanadigan qilish (nom/logo/rang env yoki Settings orqali) → ikkinchi do'kon uchun alohida Supabase + Vercel
+## Brendlar (bir kod — bir nechta do'kon)
+- Brend env orqali: `src/brand.ts` (runtime) + `vite.config.ts` brandPlugin (index.html, manifest). Standart = MARKAZZO.
+- Env: `VITE_BRAND_NAME`, `VITE_BRAND_HIGHLIGHT`, `VITE_BRAND_TAGLINE`, `VITE_BRAND_COLOR(_2/_DARK)`, `VITE_DB_NAME`, `VITE_SEED_DEMO` (`.env.example`ga qarang)
+- Yangi do'kon: yangi Supabase loyiha (`supabase/schema.sql` ni ishga tushirish) + shu repo'dan yangi Vercel loyiha, o'z env qiymatlari bilan.

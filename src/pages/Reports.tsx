@@ -4,6 +4,7 @@ import { db } from '../db'
 import { useProducts, useSales } from '../lib/data'
 import { num, som, monthNow, today } from '../lib/format'
 import { useToast } from '../components/Toast'
+import { brand, fileSlug } from '../brand'
 
 interface Item { name: string; sku: string; cat: string; qty: number; sale: number; cost: number }
 interface Group { sup: string; items: Item[]; qty: number; sale: number; cost: number }
@@ -60,7 +61,7 @@ export default function Reports() {
     try {
       const XLSX = await import('xlsx')
       const rows: any[][] = [
-        ['MARKAZZO — Sotilgan tovarlar hisoboti'],
+        [`${brand.name} — Sotilgan tovarlar hisoboti`],
         [`Sana oralig'i: ${from || 'boshidan'} — ${to || 'oxirigacha'}`],
         [],
         ['№', "Ta'minotchi", 'Tovar', 'Kod', 'Kategoriya', 'Sotilgan', "Sotuv summasi (so'm)", "Tannarx (so'm)", "Foyda (so'm)"],
@@ -78,7 +79,7 @@ export default function Reports() {
       ws['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 38 }, { wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 16 }]
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Sotilgan tovarlar')
-      XLSX.writeFile(wb, `MARKAZZO_sotilgan_${from || 'all'}_${to || 'now'}.xlsx`)
+      XLSX.writeFile(wb, `${fileSlug}_sotilgan_${from || 'all'}_${to || 'now'}.xlsx`)
       toast('Excel yuklab olindi', 'ok')
     } catch (e: any) {
       toast('Xatolik: ' + (e?.message ?? ''), 'err')
