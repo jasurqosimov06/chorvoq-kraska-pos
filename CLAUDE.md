@@ -1,4 +1,4 @@
-# YANGI BREND POS / ERP
+# CHORVOQ KRASKA POS / ERP
 
 MARKAZZO POS/ERP'ning alohida nusxasi (boshqa do'kon, boshqa brend).
 MUHIM: MARKAZZO (~/Projects/markazzo-pos, markazzo-pos.vercel.app, uning Supabase'i) ga HECH QACHON tegilmaydi.
@@ -6,7 +6,7 @@ Bu loyiha o'z GitHub repo, o'z Supabase va o'z Vercel loyihasiga ega bo'lishi sh
 
 ## Stek
 - React 18 + TypeScript + Vite, react-router
-- Local-first: Dexie (IndexedDB, baza nomi `VITE_DB_NAME`, standart `yangi_brend_c1`) → Supabase bilan sinxron (`src/lib/sync.ts`: push 4s / pull 20s + realtime)
+- Local-first: Dexie (IndexedDB, baza nomi `VITE_DB_NAME`, standart `chorvoq_c1`) → Supabase bilan sinxron (`src/lib/sync.ts`: push 4s / pull 20s + realtime)
 - Supabase: auth + Postgres, sxema `supabase/schema.sql` (bigint id, `updated_ms`/`deleted` sinxron ustunlari, RLS, profiles+rollar)
 - Deploy: Vercel (env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
 
@@ -38,6 +38,6 @@ v0.6 narxni qo'lda o'zgartirish, sotuvni qaytarish · v0.7 mobil overflow · v0.
 v0.9 Hisobotlar + Excel eksport · v0.10 ta'minotchiga vozvrat
 
 ## Brendlar (bir kod — bir nechta do'kon)
-- Brend env orqali: `src/brand.ts` (runtime) + `vite.config.ts` brandPlugin (index.html, manifest). Standart = MARKAZZO.
+- Brend env orqali: `src/brand.ts` (runtime) + `vite.config.ts` brandPlugin (index.html, manifest). Standart = CHORVOQ KRASKA (feruza #0e7490).
 - Env: `VITE_BRAND_NAME`, `VITE_BRAND_HIGHLIGHT`, `VITE_BRAND_TAGLINE`, `VITE_BRAND_COLOR(_2/_DARK)`, `VITE_DB_NAME`, `VITE_SEED_DEMO` (`.env.example`ga qarang)
 - Yangi do'kon: yangi Supabase loyiha (`supabase/schema.sql` ni ishga tushirish) + shu repo'dan yangi Vercel loyiha, o'z env qiymatlari bilan.

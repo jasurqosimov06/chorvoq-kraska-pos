@@ -1,5 +1,5 @@
 -- =====================================================================
--- MARKAZZO — Supabase baza sxemasi (offline-sync + rollar)
+-- CHORVOQ KRASKA — Supabase baza sxemasi (offline-sync + rollar)
 -- Supabase Dashboard → SQL Editor → yangi query → shu faylni to'liq
 -- joylashtiring va RUN bosing. (Jadvallar bo'sh bo'lsa xavfsiz qayta ishga tushadi.)
 -- =====================================================================

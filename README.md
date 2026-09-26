@@ -1,4 +1,4 @@
-# MARKAZZO — Do'kon boshqaruv tizimi (POS/ERP)
+# CHORVOQ KRASKA — Do'kon boshqaruv tizimi (POS/ERP)
 
 Kraska va dekorativ qoplamalar do'koni uchun kassa (POS) va ombor tizimi. Billz uslubida, lekin o'zingizniki.
 
@@ -20,7 +20,7 @@ Kraska va dekorativ qoplamalar do'koni uchun kassa (POS) va ombor tizimi. Billz 
 
 ## Kompyuterda ishga tushirish
 ```bash
-cd markazzo-pos
+cd chorvoq-kraska-pos
 npm install
 npm run dev
 ```

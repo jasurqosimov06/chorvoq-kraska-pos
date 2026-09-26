@@ -1,10 +1,10 @@
 // Brend sozlamalari — har bir do'kon (Vercel loyiha) o'z env qiymatlarini beradi.
-// Bo'sh qoldirilsa MARKAZZO standartlari ishlatiladi.
+// Bo'sh qoldirilsa CHORVOQ KRASKA standartlari ishlatiladi.
 const env = import.meta.env
 
-const name = (env.VITE_BRAND_NAME as string | undefined)?.trim() || 'MARKAZZO'
+const name = (env.VITE_BRAND_NAME as string | undefined)?.trim() || 'CHORVOQ KRASKA'
 // Nomning oxiridagi rangli qismi (masalan MARKA|ZZO). Nom oxiriga mos kelmasa — rangsiz.
-const hl = (env.VITE_BRAND_HIGHLIGHT as string | undefined) ?? (name === 'MARKAZZO' ? 'ZZO' : '')
+const hl = (env.VITE_BRAND_HIGHLIGHT as string | undefined) ?? (name === 'CHORVOQ KRASKA' ? 'KRASKA' : '')
 const highlight = hl && name.endsWith(hl) ? hl : ''
 
 export const brand = {
@@ -12,11 +12,11 @@ export const brand = {
   namePlain: name.slice(0, name.length - highlight.length),
   nameHighlight: highlight,
   tagline: (env.VITE_BRAND_TAGLINE as string | undefined)?.trim() || 'Kraska va dekorativ qoplamalar',
-  color: (env.VITE_BRAND_COLOR as string | undefined)?.trim() || '#c1121f',
-  color2: (env.VITE_BRAND_COLOR_2 as string | undefined)?.trim() || '#e11d2a',
-  colorDark: (env.VITE_BRAND_COLOR_DARK as string | undefined)?.trim() || '#8d0d17',
+  color: (env.VITE_BRAND_COLOR as string | undefined)?.trim() || '#0e7490',
+  color2: (env.VITE_BRAND_COLOR_2 as string | undefined)?.trim() || '#22b8cf',
+  colorDark: (env.VITE_BRAND_COLOR_DARK as string | undefined)?.trim() || '#155e75',
   // IndexedDB nomi — bir kompyuterda (bir origin) ikki brend to'qnashmasligi uchun
-  dbName: (env.VITE_DB_NAME as string | undefined)?.trim() || 'yangi_brend_c1',
+  dbName: (env.VITE_DB_NAME as string | undefined)?.trim() || 'chorvoq_c1',
   // Lokal rejimda namuna (kraska) tovarlarini avtomatik yuklash
   seedDemo: (env.VITE_SEED_DEMO as string | undefined) !== 'false',
 }

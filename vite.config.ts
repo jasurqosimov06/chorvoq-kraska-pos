@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 
 // index.html sarlavhasi/rangi va PWA manifest'ni brend env'dan yasaydi (src/brand.ts bilan bir xil standartlar)
 function brandPlugin(env: Record<string, string>): Plugin {
-  const name = env.VITE_BRAND_NAME?.trim() || 'MARKAZZO'
-  const color = env.VITE_BRAND_COLOR?.trim() || '#c1121f'
+  const name = env.VITE_BRAND_NAME?.trim() || 'CHORVOQ KRASKA'
+  const color = env.VITE_BRAND_COLOR?.trim() || '#0e7490'
   const title = `${name} — Do'kon boshqaruvi`
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
   const icon = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='36' fill='${color}'/><text x='96' y='124' font-size='92' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>${esc(name.charAt(0).toUpperCase())}</text></svg>`
