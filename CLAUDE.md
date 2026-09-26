@@ -2,6 +2,7 @@
 
 MARKAZZO POS/ERP'ning alohida nusxasi (boshqa do'kon, boshqa brend).
 MUHIM: MARKAZZO (~/Projects/markazzo-pos, markazzo-pos.vercel.app, uning Supabase'i) ga HECH QACHON tegilmaydi.
+GitHub: https://github.com/jasurqosimov06/chorvoq-kraska-pos
 Bu loyiha o'z GitHub repo, o'z Supabase va o'z Vercel loyihasiga ega bo'lishi shart — Markazzo kalitlarini bu yerga qo'ymang.
 
 ## Stek
