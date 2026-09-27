@@ -117,6 +117,9 @@ drop policy if exists profiles_read on public.profiles;
 create policy profiles_read on public.profiles for select to authenticated using (true);
 drop policy if exists profiles_self on public.profiles;
 create policy profiles_self on public.profiles for update to authenticated using (auth.uid() = id);
+-- Foydalanuvchi faqat o'z ismini o'zgartira oladi; rolni (admin/sotuvchi) faqat Supabase paneli orqali
+revoke update on public.profiles from anon, authenticated;
+grant update (name) on public.profiles to authenticated;
 
 -- ---------- Realtime (jonli sinxron) ----------
 do $$
