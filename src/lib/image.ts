@@ -29,3 +29,8 @@ export function fileToResizedDataUrl(file: File, max = 420, quality = 0.8): Prom
     reader.readAsDataURL(file)
   })
 }
+
+// AI uchun: matn o'qilishi uchun kattaroq o'lcham (Claude uchun ~1568px yetarli)
+export function fileToAiJpeg(file: File): Promise<string> {
+  return fileToResizedDataUrl(file, 1568, 0.85)
+}

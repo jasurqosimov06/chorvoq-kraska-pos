@@ -7,6 +7,8 @@ import { Modal } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { ScannerModal } from '../components/ScannerModal'
 import { fileToResizedDataUrl } from '../lib/image'
+import { AiImportModal } from '../components/AiImportModal'
+import { supabaseEnabled } from '../lib/supabase'
 
 const EMPTY: Product = {
   barcode: '', sku: '', name: '', family: '', category: CATEGORIES[0], brand: '', unit: 'dona', size: '',
@@ -21,6 +23,7 @@ export default function Products() {
   const [q, setQ] = useState('')
   const [edit, setEdit] = useState<Product | null>(null)
   const [scanField, setScanField] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -85,8 +88,11 @@ export default function Products() {
     <>
       <div className="section-head">
         <input className="input" style={{ maxWidth: 340 }} placeholder="Qidirish..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="spacer" />
+        {supabaseEnabled && <button className="btn dark" onClick={() => setAiOpen(true)}>🤖 Rasmdan qo'shish</button>}
         <button className="btn primary" onClick={() => setEdit({ ...EMPTY })}>+ Yangi tovar</button>
       </div>
+      {aiOpen && <AiImportModal onClose={() => setAiOpen(false)} />}
       <div className="table-wrap">
         <table>
           <thead>

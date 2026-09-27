@@ -23,6 +23,12 @@ Bu loyiha o'z GitHub repo, o'z Supabase va o'z Vercel loyihasiga ega bo'lishi sh
 - `src/lib/auth.tsx` — login/rollar. Admin = hammasi; Sotuvchi = Kassa/Ostatka/Qarzlar/Mijozlar. Birinchi ro'yxatdan o'tgan = admin (DB trigger)
 - `src/pages/` — POS (Kassa), Dashboard, Products, Purchases (Kirim/Vozvrat), Stock, Customers, Debts, Balances (Hisob), Expenses, Reports, Settings
 
+## AI: rasmdan tovar qo'shish
+- `api/ai-products.ts` — Vercel funksiya: rasm(lar) → Claude (`claude-opus-5`, structured output) → tovarlar ro'yxati. Faqat Admin (Supabase token + profiles.role tekshiriladi).
+- Vercel env: `ANTHROPIC_API_KEY` (faqat serverda; `VITE_` prefiksi QO'YILMAYDI). Env o'zgarsa — qayta deploy.
+- UI: `src/components/AiImportModal.tsx` (Tovarlar → 🤖 Rasmdan qo'shish). Miqdor → pul harakatisiz kirim (`addPurchase`, paidUzs 0).
+- `vite dev` /api ni ishlatmaydi — to'liq sinov faqat deploy'da (yoki `vercel dev`).
+
 ## Muhim qoidalar / tuzoqlar
 - `onAuthStateChange` ichida DB'ni await qilmang — deadlock. Profil alohida effektda yuklanadi.
 - ID'lar global `genId()`; o'chirish faqat yumshoq (`softDelete`), bulutdan keladigan yozuvlarda `setApplyingRemote`.
