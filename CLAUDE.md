@@ -9,7 +9,7 @@ Bu loyiha o'z GitHub repo, o'z Supabase va o'z Vercel loyihasiga ega bo'lishi sh
 ## Stek
 - React 18 + TypeScript + Vite, react-router
 - Local-first: Dexie (IndexedDB, baza nomi `VITE_DB_NAME`, standart `chorvoq_c1`) → Supabase bilan sinxron (`src/lib/sync.ts`: push 4s / pull 20s + realtime)
-- Supabase: auth + Postgres, sxema `supabase/schema.sql` (bigint id, `updated_ms`/`deleted` sinxron ustunlari, RLS, profiles+rollar)
+- Supabase: auth + Postgres, sxema `supabase/schema.sql` (⚠️ jadvallarni o'chiradi — faqat yangi baza uchun; ruxsatlar: `supabase/rollar.sql`, qayta ishlatsa bo'ladi) (bigint id, `updated_ms`/`deleted` sinxron ustunlari, RLS, profiles+rollar)
 - Deploy: Vercel (env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
 
 ## Ishga tushirish (yangi kompyuterda)

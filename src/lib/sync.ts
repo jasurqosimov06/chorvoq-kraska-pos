@@ -20,6 +20,9 @@ function fromCloud(row: any) {
   return o
 }
 
+// Postgres: row-level security ruxsat bermadi
+const RLS_DENIED = '42501'
+
 const getMs = (key: string) => Number(localStorage.getItem(key) || '0')
 const setMs = (key: string, v: number) => localStorage.setItem(key, String(v))
 
@@ -33,7 +36,15 @@ async function pushTable(dName: string) {
   if (recs.length === 0) return
   const rows = recs.map(toCloud)
   const { error } = await supabase.from(cName).upsert(rows)
-  if (error) throw error
+  if (error) {
+    if (error.code !== RLS_DENIED) throw error
+    // Ruxsat yo'q (masalan sotuvchi qurilmasida admin yozuvlari qolgan) — bittalab yuboramiz,
+    // ruxsatsizlarini tashlab ketamiz, aks holda ular butun jadval sinxronini to'xtatib qo'yadi
+    for (const row of rows) {
+      const r = await supabase.from(cName).upsert(row)
+      if (r.error && r.error.code !== RLS_DENIED) throw r.error
+    }
+  }
   const maxMs = Math.max(...recs.map((r: any) => r.updatedMs || 0))
   setMs(key, maxMs)
 }
