@@ -7,6 +7,7 @@ interface AuthCtx {
   ready: boolean
   user: { id: string; email: string } | null
   role: Role
+  roleReady: boolean // profil (rol) yuklandimi
   name: string
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signUp: (email: string, password: string, name: string) => Promise<{ error?: string }>
@@ -15,7 +16,7 @@ interface AuthCtx {
 
 // Supabase o'chirilgan bo'lsa (kalit yo'q) — lokal rejim: login talab qilinmaydi, hamma admin.
 const Ctx = createContext<AuthCtx>({
-  ready: true, user: null, role: 'admin', name: '',
+  ready: true, user: null, role: 'admin', roleReady: true, name: '',
   signIn: async () => ({}), signUp: async () => ({}), signOut: async () => {},
 })
 
@@ -29,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(!supabaseEnabled)
   const [user, setUser] = useState<AuthCtx['user']>(null)
   const [role, setRole] = useState<Role>('admin')
+  const [roleReady, setRoleReady] = useState(!supabaseEnabled)
   const [name, setName] = useState('')
 
   // 1) Sessiyani kuzatamiz. DIQQAT: onAuthStateChange ichida await-DB chaqirmaymiz (deadlock).
@@ -49,10 +51,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase || !user) return
     let active = true
+    setRoleReady(false)
+    const cacheKey = `role_${user.id}`
     supabase.from('profiles').select('role, name').eq('id', user.id).single().then(({ data }) => {
       if (!active) return
-      setRole((data?.role as Role) ?? 'sotuvchi')
+      // Internet bo'lmasa oxirgi ma'lum rol (aks holda — eng cheklangani)
+      const r = (data?.role as Role) ?? (localStorage.getItem(cacheKey) as Role | null) ?? 'sotuvchi'
+      if (data?.role) localStorage.setItem(cacheKey, data.role)
+      setRole(r)
       setName(data?.name || user.email)
+      setRoleReady(true)
     })
     return () => { active = false }
   }, [user?.id])
@@ -69,5 +77,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
   const signOut = async () => { if (supabase) await supabase.auth.signOut() }
 
-  return <Ctx.Provider value={{ ready, user, role, name, signIn, signUp, signOut }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ ready, user, role, roleReady, name, signIn, signUp, signOut }}>{children}</Ctx.Provider>
 }

@@ -29,6 +29,11 @@ Bu loyiha o'z GitHub repo, o'z Supabase va o'z Vercel loyihasiga ega bo'lishi sh
 - UI: `src/components/AiImportModal.tsx` (Tovarlar → 🤖 Rasmdan qo'shish). Miqdor → pul harakatisiz kirim (`addPurchase`, paidUzs 0).
 - `vite dev` /api ni ishlatmaydi — to'liq sinov faqat deploy'da (yoki `vercel dev`).
 
+## Rollar va tannarx (supabase/rollar.sql)
+- Sotuvchi kirim narxini ko'rmaydi: tovar/kirimni `products_public`/`purchases_public` view'dan tortadi; `sales.cost/profit`, `sale_lines.cost` bazada doim 0 (trigger), haqiqiysi `sale_costs`/`sale_line_costs` da (faqat admin). Sotuvchi sotganda tannarxni trigger hisoblaydi (cost_usd × settings.kurs).
+- Admin sotuvlarni `sales_full`/`sale_lines_full` dan oladi. Qaysi rol qayerdan tortishi: `src/lib/sync.ts` PULL_SOURCE / NO_PUSH.
+- Boshqa foydalanuvchi/rol kirganda lokal Dexie tozalanadi (`sync_owner`). Chiqishda avval push.
+
 ## Muhim qoidalar / tuzoqlar
 - `onAuthStateChange` ichida DB'ni await qilmang — deadlock. Profil alohida effektda yuklanadi.
 - ID'lar global `genId()`; o'chirish faqat yumshoq (`softDelete`), bulutdan keladigan yozuvlarda `setApplyingRemote`.

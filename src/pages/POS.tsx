@@ -61,7 +61,7 @@ export default function POS() {
   function addProduct(p: Product) {
     if (!p.id) return
     const stock = stockOf(p.id)
-    const cost = costUzs(p.costUsd, settings.kurs)
+    const cost = costUzs(p.costUsd || 0, settings.kurs) // sotuvchida tannarx yo'q — serverda hisoblanadi
     setCart((prev) => {
       const ex = prev.find((l) => l.productId === p.id)
       if (ex) {

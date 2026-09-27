@@ -4,7 +4,7 @@ import { ToastProvider } from './components/Toast'
 import { useSettings } from './lib/data'
 import { num } from './lib/format'
 import { useAuth, authRequired } from './lib/auth'
-import { startSync, stopSync } from './lib/sync'
+import { pendingCount, pushAll, startSync, stopSync } from './lib/sync'
 import POS from './pages/POS'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
@@ -46,16 +46,25 @@ function Denied() {
 export default function App() {
   const settings = useSettings()
   const path = useLocation().pathname
-  const { ready, user, role, name, signOut } = useAuth()
+  const { ready, user, role, roleReady, name, signOut } = useAuth()
 
   useEffect(() => {
     if (!authRequired) return
-    if (user) startSync()
+    if (user && roleReady) startSync(user.id, role)
     else stopSync()
-  }, [user])
+  }, [user?.id, roleReady, role])
+
+  // Chiqishdan oldin lokal yozuvlarni bulutga yuboramiz — keyingi foydalanuvchi kirganda lokal nusxa tozalanadi
+  async function logout() {
+    await pushAll()
+    const left = await pendingCount()
+    if (left > 0 && !confirm(`${left} ta yozuv hali bulutga yuborilmagan (internetni tekshiring). Baribir chiqilsinmi?`)) return
+    await signOut()
+  }
 
   if (authRequired && !ready) return <div className="fullcenter">Yuklanmoqda…</div>
   if (authRequired && !user) return <Login />
+  if (authRequired && !roleReady) return <div className="fullcenter">Yuklanmoqda…</div>
 
   const isAdmin = !authRequired || role === 'admin'
   const nav = NAV.filter((n) => isAdmin || !n.admin)
@@ -85,7 +94,7 @@ export default function App() {
                 <div className="user-chip">
                   <span className="uname">{name}</span>
                   <span className={`urole ${isAdmin ? 'admin' : ''}`}>{isAdmin ? 'Admin' : 'Sotuvchi'}</span>
-                  <button className="btn sm" onClick={signOut} title="Chiqish">⎋</button>
+                  <button className="btn sm" onClick={logout} title="Chiqish">⎋</button>
                 </div>
               )}
             </div>

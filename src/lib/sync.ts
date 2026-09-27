@@ -23,12 +23,28 @@ function fromCloud(row: any) {
 // Postgres: row-level security ruxsat bermadi
 const RLS_DENIED = '42501'
 
+export type SyncRole = 'admin' | 'sotuvchi'
+let role: SyncRole = 'admin'
+
+// Qaysi jadvalni qayerdan tortamiz (supabase/rollar.sql): sotuvchi tovar/kirimni tannarxsiz
+// ko'rinishlardan oladi; bazaviy sotuv jadvallarida tannarx 0, admin uni *_full dan oladi
+const PULL_SOURCE: Record<SyncRole, Record<string, string>> = {
+  sotuvchi: { products: 'products_public', purchases: 'purchases_public' },
+  admin: { sales: 'sales_full', saleLines: 'sale_lines_full' },
+}
+const pullSource = (dName: string) => PULL_SOURCE[role][dName] ?? TABLE_MAP[dName]
+// Sotuvchi bu jadvallarga yoza olmaydi — yubormaymiz ham
+const NO_PUSH: Record<SyncRole, string[]> = {
+  sotuvchi: ['products', 'purchases', 'fixedExpenses', 'expenses', 'dividends'],
+  admin: [],
+}
+
 const getMs = (key: string) => Number(localStorage.getItem(key) || '0')
 const setMs = (key: string, v: number) => localStorage.setItem(key, String(v))
 
 // ---------- PUSH: lokal o'zgarishlarni bulutga ----------
 async function pushTable(dName: string) {
-  if (!supabase) return
+  if (!supabase || NO_PUSH[role].includes(dName)) return
   const cName = TABLE_MAP[dName]
   const key = `push_${dName}`
   const last = getMs(key)
@@ -52,7 +68,7 @@ async function pushTable(dName: string) {
 // ---------- PULL: bulutdagi o'zgarishlarni lokalga ----------
 async function pullTable(dName: string) {
   if (!supabase) return
-  const cName = TABLE_MAP[dName]
+  const cName = pullSource(dName)
   const key = `pull_${dName}`
   const last = getMs(key)
   const { data, error } = await supabase.from(cName).select('*').gt('updated_ms', last).order('updated_ms', { ascending: true }).limit(2000)
@@ -77,7 +93,7 @@ async function pullTable(dName: string) {
 
 // ---------- Sozlamalar sinxroni ----------
 async function pushSettings() {
-  if (!supabase) return
+  if (!supabase || role !== 'admin') return
   const s = await db.settings.get(1)
   if (!s) return
   const last = getMs('push_settings')
@@ -113,9 +129,40 @@ let pushTimer: any = null
 let pullTimer: any = null
 let channel: any = null
 
-export async function startSync() {
+// Lokal nusxada hali bulutga ketmagan yozuvlar soni
+export async function pendingCount(): Promise<number> {
+  let n = 0
+  for (const t of DEXIE_TABLES) {
+    const last = getMs(`push_${t}`)
+    n += await (db as any)[t].filter((r: any) => (r.updatedMs || 0) > last).count()
+  }
+  return n
+}
+
+// Boshqa foydalanuvchi/rol kirganda: oldingisining lokal nusxasini (tannarx va h.k.) o'chiramiz
+async function resetLocalFor(owner: string) {
+  if (localStorage.getItem('sync_owner') === owner) return
+  try { await pushAll() } catch {}
+  for (const t of DEXIE_TABLES) {
+    await (db as any)[t].clear()
+    localStorage.removeItem(`push_${t}`)
+    localStorage.removeItem(`pull_${t}`)
+  }
+  localStorage.removeItem('push_settings')
+  localStorage.setItem('sync_owner', owner)
+}
+
+const refetchTimers: Record<string, any> = {}
+function refetchSoon(dName: string) {
+  clearTimeout(refetchTimers[dName])
+  refetchTimers[dName] = setTimeout(() => { pullTable(dName).catch(() => {}) }, 500)
+}
+
+export async function startSync(userId: string, userRole: SyncRole) {
   if (!supabaseEnabled || !supabase || started) return
   started = true
+  role = userRole
+  await resetLocalFor(`${userId}:${userRole}`)
 
   // 1) Boshlang'ich pull (bulutdagi hamma narsani olib kelamiz)
   await pullAll()
@@ -130,6 +177,8 @@ export async function startSync() {
   channel = supabase.channel('markazzo-sync')
   for (const dName of DEXIE_TABLES) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: TABLE_MAP[dName] }, async (payload: any) => {
+      // Bu rol uchun jadval boshqa ko'rinishdan olinadi — payloadni emas, o'sha ko'rinishni tortamiz
+      if (pullSource(dName) !== TABLE_MAP[dName]) { refetchSoon(dName); return }
       const row = payload.new
       if (!row || row.id == null) return
       const rec = fromCloud(row)
@@ -162,7 +211,5 @@ export function stopSync() {
   if (channel && supabase) supabase.removeChannel(channel)
   channel = null
   window.removeEventListener('online', onOnline)
-  // yangi foydalanuvchi uchun sync kursorlarini tozalash
-  for (const t of DEXIE_TABLES) { localStorage.removeItem(`push_${t}`); localStorage.removeItem(`pull_${t}`) }
-  localStorage.removeItem('push_settings')
+  // Kursorlar saqlanadi; boshqa foydalanuvchi kirsa resetLocalFor tozalaydi
 }
