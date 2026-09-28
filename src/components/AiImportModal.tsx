@@ -150,6 +150,8 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
     if (!rows) return
     const chosen = rows.filter((r) => r.on)
     if (chosen.some((r) => !r.existingId && !r.name.trim())) { toast('Nomi bo\'sh tovar bor', 'err'); return }
+    if (!supplierName.trim() && chosen.some((r) => r.qty > 0) &&
+      !confirm("Ta'minotchi ko'rsatilmadi — kirim QARZSIZ (boshlang'ich qoldiq) bo'lib yoziladi.\n\nQarzga yozish kerak bo'lsa, \"Bekor\" ni bosib, Ta'minotchi maydonini to'ldiring.")) return
     setSaving(true)
     let added = 0, stocked = 0
     try {
