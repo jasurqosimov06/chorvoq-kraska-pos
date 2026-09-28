@@ -8,7 +8,6 @@ import { useToast } from '../components/Toast'
 import { ScannerModal } from '../components/ScannerModal'
 import { fileToResizedDataUrl } from '../lib/image'
 import { AiImportModal } from '../components/AiImportModal'
-import { supabaseEnabled } from '../lib/supabase'
 
 const EMPTY: Product = {
   barcode: '', sku: '', name: '', family: '', category: CATEGORIES[0], brand: '', unit: 'dona', size: '',
@@ -89,7 +88,7 @@ export default function Products() {
       <div className="section-head">
         <input className="input" style={{ maxWidth: 340 }} placeholder="Qidirish..." value={q} onChange={(e) => setQ(e.target.value)} />
         <span className="spacer" />
-        {supabaseEnabled && <button className="btn dark" onClick={() => setAiOpen(true)}>🤖 Rasmdan qo'shish</button>}
+        <button className="btn dark" onClick={() => setAiOpen(true)}>📥 Import (rasm / Excel)</button>
         <button className="btn primary" onClick={() => setEdit({ ...EMPTY })}>+ Yangi tovar</button>
       </div>
       {aiOpen && <AiImportModal onClose={() => setAiOpen(false)} />}
