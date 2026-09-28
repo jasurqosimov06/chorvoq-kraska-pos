@@ -218,6 +218,37 @@ export async function returnToSupplier(p: {
   })
 }
 
+// Kirimni tuzatish (xato yozilgan bo'lsa). Ombor qoldig'i kirimlardan hisoblangani uchun o'zi to'g'rilanadi;
+// ta'minotchi qarzi eski va yangi summa farqiga qarab tuzatiladi. To'langan summa va kassa o'zgarmaydi.
+export async function editPurchase(id: number, next: {
+  date: string; qty: number; costUsd: number; supplierId: number | null; supplierName: string
+}): Promise<void> {
+  await db.transaction('rw', db.purchases, db.suppliers, db.products, async () => {
+    const old = await db.purchases.get(id)
+    if (!old || old.qty <= 0) return
+    const paid = old.paidUzs ?? old.qty * old.costUsd * old.kurs
+    const oldDebt = Math.max(0, old.qty * old.costUsd * old.kurs - paid)
+    const newDebt = Math.max(0, next.qty * next.costUsd * old.kurs - paid)
+    const shift = async (supplierId: number | null | undefined, delta: number) => {
+      if (!supplierId || !delta) return
+      const s = await db.suppliers.get(supplierId)
+      if (s) await db.suppliers.update(supplierId, { debt: Math.max(0, (s.debt || 0) + delta) })
+    }
+    if ((old.supplierId ?? null) === next.supplierId) {
+      await shift(next.supplierId, newDebt - oldDebt)
+    } else {
+      await shift(old.supplierId, -oldDebt)
+      await shift(next.supplierId, newDebt)
+    }
+    await db.purchases.update(id, {
+      date: next.date, qty: next.qty, costUsd: next.costUsd, supplierId: next.supplierId,
+      supplier: next.supplierName, paidUzs: paid,
+    })
+    // Katalogdagi kirim narxi ham shu tuzatilgan narxga (addPurchase bilan bir xil)
+    if (next.costUsd !== old.costUsd) await db.products.update(old.productId, { costUsd: next.costUsd })
+  })
+}
+
 // Mijoz qarzini to'lash (kassaga kirim)
 export async function payCustomerDebt(customerId: number, amount: number, account: Account, note: string): Promise<void> {
   await db.transaction('rw', db.customers, db.payments, db.ledger, async () => {

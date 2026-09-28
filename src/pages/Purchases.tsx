@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, softDelete } from '../db'
-import { useProducts, useSettings, useSuppliers, useStockMap, addPurchase, returnToSupplier } from '../lib/data'
+import { useProducts, useSettings, useSuppliers, useStockMap, addPurchase, returnToSupplier, editPurchase } from '../lib/data'
 import { num, som, today, usd } from '../lib/format'
-import { ACCOUNTS, type Account } from '../types'
+import { ACCOUNTS, type Account, type Purchase } from '../types'
 import { useToast } from '../components/Toast'
+import { Modal } from '../components/Modal'
 
 export default function Purchases() {
   const products = useProducts()
@@ -42,6 +43,8 @@ export default function Purchases() {
   const [paid, setPaid] = useState<number | ''>('')
   const [account, setAccount] = useState<Account>('naqd')
   const [retMode, setRetMode] = useState<'debt' | 'cash'>('debt')
+  // Tahrirlanayotgan kirim (asl yozuv + yangi qiymatlar)
+  const [edit, setEdit] = useState<{ orig: Purchase; date: string; qty: number | ''; costUsd: number | ''; supplierId: number | '' } | null>(null)
 
   const curStock = productId ? (stockMap.get(Number(productId))?.stock ?? 0) : 0
 
@@ -85,6 +88,20 @@ export default function Purchases() {
     })
     toast(retMode === 'debt' ? `Vozvrat: qarzdan ${som(summaUzs)} chegirildi` : `Vozvrat: ${som(summaUzs)} qaytarildi`, 'ok')
     setQty('')
+  }
+
+  async function saveEdit() {
+    if (!edit?.orig.id) return
+    const q = Number(edit.qty) || 0
+    if (q <= 0) return toast("Miqdor 0 dan katta bo'lsin", 'err')
+    const sup = suppliers.find((x) => x.id === edit.supplierId)
+    await editPurchase(edit.orig.id, {
+      date: edit.date, qty: q, costUsd: Number(edit.costUsd) || 0,
+      supplierId: edit.supplierId ? Number(edit.supplierId) : null,
+      supplierName: edit.supplierId ? (sup?.name || edit.orig.supplier) : "Boshlang'ich qoldiq",
+    })
+    toast('Kirim tuzatildi', 'ok')
+    setEdit(null)
   }
 
   async function remove(id?: number) {
@@ -216,7 +233,10 @@ export default function Purchases() {
                     <td className="num">{num(k.paidUzs ?? summa)}</td>
                     <td className="num">{kdebt > 0 ? <b style={{ color: 'var(--brand)' }}>{num(kdebt)}</b> : '—'}</td>
                     <td>{k.supplier}</td>
-                    <td className="num"><button className="btn sm danger" onClick={() => remove(k.id)}>🗑</button></td>
+                    <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                      {k.qty > 0 && <><button className="btn sm" title="Tahrirlash" onClick={() => setEdit({ orig: k, date: k.date, qty: k.qty, costUsd: k.costUsd, supplierId: k.supplierId ?? '' })}>✏️</button>{' '}</>}
+                      <button className="btn sm danger" onClick={() => remove(k.id)}>🗑</button>
+                    </td>
                   </tr>
                 )
               })}
@@ -234,6 +254,40 @@ export default function Purchases() {
           </table>
         </div>
       </div>
+
+      {edit && (() => {
+        const o = edit.orig
+        const paidOld = o.paidUzs ?? o.qty * o.costUsd * o.kurs
+        const summaNew = (Number(edit.qty) || 0) * (Number(edit.costUsd) || 0) * o.kurs
+        const debtOld = Math.max(0, o.qty * o.costUsd * o.kurs - paidOld)
+        const debtNew = Math.max(0, summaNew - paidOld)
+        return (
+          <Modal
+            title={`Kirimni tahrirlash — ${pmap.get(o.productId)?.name ?? ''}`}
+            onClose={() => setEdit(null)}
+            footer={<><button className="btn" onClick={() => setEdit(null)}>Bekor</button><button className="btn primary" onClick={saveEdit}>Saqlash</button></>}
+          >
+            <div className="grid2">
+              <div className="field"><label>Sana</label><input className="input" type="date" value={edit.date} onChange={(e) => setEdit({ ...edit, date: e.target.value })} /></div>
+              <div className="field"><label>Yetkazib beruvchi</label>
+                <select className="input" value={edit.supplierId} onChange={(e) => setEdit({ ...edit, supplierId: e.target.value ? Number(e.target.value) : '' })}>
+                  <option value="">— yo'q (qarzsiz) —</option>
+                  {suppliers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+              </div>
+              <div className="field"><label>Miqdor</label><input className="input" type="number" value={edit.qty} onChange={(e) => setEdit({ ...edit, qty: e.target.value ? Number(e.target.value) : '' })} /></div>
+              <div className="field"><label>Kirim narxi ($)</label><input className="input" type="number" step="0.01" value={edit.costUsd} onChange={(e) => setEdit({ ...edit, costUsd: e.target.value ? Number(e.target.value) : '' })} /></div>
+            </div>
+            <div className="card" style={{ background: '#f8fafc', padding: 12, fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span>Summa: <b>{som(o.qty * o.costUsd * o.kurs)}</b> → <b>{som(summaNew)}</b> (kurs {num(o.kurs)})</span>
+              <span>To'langan: <b>{som(paidOld)}</b> (o'zgarmaydi)</span>
+              <span>Bu kirim bo'yicha qarz: <b>{som(o.supplierId ? debtOld : 0)}</b> → <b style={{ color: 'var(--brand)' }}>{som(edit.supplierId ? debtNew : 0)}</b></span>
+              {summaNew < paidOld && <span style={{ color: 'var(--amber)' }}>Yangi summa to'langandan kam — ortiqcha to'lov qarzdan ayrilmaydi.</span>}
+              <span style={{ color: 'var(--muted)', fontSize: 12 }}>Ombor qoldig'i va ta'minotchi qarzi avtomatik to'g'rilanadi. Narx o'zgarsa, katalogdagi kirim narxi ham yangilanadi.</span>
+            </div>
+          </Modal>
+        )
+      })()}
     </>
   )
 }
