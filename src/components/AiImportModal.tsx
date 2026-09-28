@@ -151,7 +151,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
     const chosen = rows.filter((r) => r.on)
     if (chosen.some((r) => !r.existingId && !r.name.trim())) { toast('Nomi bo\'sh tovar bor', 'err'); return }
     if (!supplierName.trim() && chosen.some((r) => r.qty > 0) &&
-      !confirm("Ta'minotchi ko'rsatilmadi — kirim QARZSIZ (boshlang'ich qoldiq) bo'lib yoziladi.\n\nQarzga yozish kerak bo'lsa, \"Bekor\" ni bosib, Ta'minotchi maydonini to'ldiring.")) return
+      !confirm("Yetkazib beruvchi ko'rsatilmadi — kirim QARZSIZ (boshlang'ich qoldiq) bo'lib yoziladi.\n\nQarzga yozish kerak bo'lsa, \"Bekor\" ni bosib, Yetkazib beruvchi maydonini to'ldiring.")) return
     setSaving(true)
     let added = 0, stocked = 0
     try {
@@ -195,8 +195,8 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
   // Ta'minotchi / sana / marja — fayl tanlashdan OLDIN ham, ko'rib chiqishda ham ko'rinadi
   const headFields = (
     <div className="grid3">
-      <div className="field"><label>Ta'minotchi (qarzga yoziladi)</label>
-        <input className="input" list="sup-list" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="masalan: DDER TOOLS"
+      <div className="field"><label>Yetkazib beruvchi (qarzga yoziladi)</label>
+        <input className="input" list="sup-list" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="Yetkazib beruvchi nomini yozing"
           style={supplierName.trim() ? undefined : { borderColor: 'var(--amber)' }} />
         <datalist id="sup-list">{suppliers.map((s) => <option key={s.id} value={s.name} />)}</datalist>
       </div>
@@ -211,7 +211,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
   )
   const supplierHint = (
     <div style={{ fontSize: 12, color: supplierName.trim() ? 'var(--muted)' : 'var(--amber)', marginTop: 4 }}>
-      {supplierName.trim() ? `Kirim "${supplierName.trim()}" ga qarz bo'lib yoziladi, kassadan pul chiqmaydi.` : "Ta'minotchi yozilmasa — kirim qarzsiz (boshlang'ich qoldiq) bo'ladi."}
+      {supplierName.trim() ? `Kirim "${supplierName.trim()}" ga qarz bo'lib yoziladi, kassadan pul chiqmaydi.` : "Yetkazib beruvchi yozilmasa — kirim qarzsiz (boshlang'ich qoldiq) bo'ladi."}
     </div>
   )
 
