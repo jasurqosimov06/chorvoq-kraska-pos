@@ -20,7 +20,7 @@ interface AiProduct {
 // Ko'rib chiqish/tahrirlash uchun qator
 interface Draft {
   on: boolean
-  existingId: number | null // bazada shunday tovar bor bo'lsa — faqat qoldiq qo'shiladi
+  existingId: number | null // bazada bor bo'lsa — yangi tovar yaratilmaydi: narxi yangilanadi, qoldiq qo'shiladi
   name: string; family: string; category: string; brand: string; size: string; unit: string
   barcode: string; qty: number; costUsd: number; priceUzs: number
   confidence: AiProduct['confidence']; note: string
@@ -63,9 +63,12 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
   function toDrafts(list: Omit<Draft, 'on' | 'existingId'>[]): Draft[] {
     return list.map((p) => {
       const existingId = findExisting(products, p.barcode, p.name)
-      // Sotuv narxi berilmagan bo'lsa — belgilangan marja bo'yicha
-      const priceUzs = p.priceUzs || (p.costUsd ? withMargin(p.costUsd, settings.kurs, margin) : 0)
-      return { ...p, priceUzs, on: !existingId || p.qty > 0, existingId }
+      const ex = existingId ? products.find((x) => x.id === existingId) : undefined
+      const costUsd = p.costUsd || ex?.costUsd || 0
+      // Sotuv narxi: fayl/rasmda bo'lsa o'sha; bo'lmasa bazadagi tovarniki; yangi tovarga — belgilangan marja
+      const priceUzs = p.priceUzs || ex?.priceUzs || (costUsd ? withMargin(costUsd, settings.kurs, margin) : 0)
+      const changed = !!ex && (priceUzs !== ex.priceUzs || costUsd !== ex.costUsd)
+      return { ...p, costUsd, priceUzs, on: !ex || p.qty > 0 || changed, existingId }
     })
   }
 
@@ -145,7 +148,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
   }
 
   function applyMargin() {
-    setRows((rs) => rs && rs.map((r) => (r.existingId || !r.costUsd ? r : { ...r, priceUzs: withMargin(r.costUsd, settings.kurs, margin) })))
+    setRows((rs) => rs && rs.map((r) => (!r.costUsd ? r : { ...r, priceUzs: withMargin(r.costUsd, settings.kurs, margin) })))
     toast(`Sotuv narxlari: marja ${margin}%`, 'ok')
   }
 
@@ -156,7 +159,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
     if (!supplierName.trim() && chosen.some((r) => r.qty > 0) &&
       !confirm("Yetkazib beruvchi ko'rsatilmadi — kirim QARZSIZ (boshlang'ich qoldiq) bo'lib yoziladi.\n\nQarzga yozish kerak bo'lsa, \"Bekor\" ni bosib, Yetkazib beruvchi maydonini to'ldiring.")) return
     setSaving(true)
-    let added = 0, stocked = 0
+    let added = 0, stocked = 0, repriced = 0
     try {
       // Ta'minotchi: bor bo'lsa o'sha, yo'q bo'lsa yangisi yaratiladi. Kirim qarzga yoziladi.
       const sName = supplierName.trim()
@@ -174,6 +177,13 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
             unit: r.unit, size: r.size.trim(), costUsd: r.costUsd, priceUzs: r.priceUzs, imageData: '', createdAt: Date.now(),
           })) as number
           added++
+        } else {
+          // Bazadagi tovar: fayldagi narxlar katalogga yoziladi
+          const ex = products.find((x) => x.id === productId)
+          const patch: Partial<Product> = {}
+          if (r.costUsd > 0 && r.costUsd !== ex?.costUsd) patch.costUsd = r.costUsd
+          if (r.priceUzs > 0 && r.priceUzs !== ex?.priceUzs) patch.priceUzs = r.priceUzs
+          if (Object.keys(patch).length) { await db.products.update(productId, patch); repriced++ }
         }
         if (r.qty > 0) {
           await addPurchase({
@@ -183,7 +193,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
           stocked++
         }
       }
-      toast(`${added} ta yangi tovar, ${stocked} ta kirim${sName ? ` (${sName} — qarzga)` : ''}`, 'ok')
+      toast(`${added} ta yangi tovar, ${repriced} ta narx yangilandi, ${stocked} ta kirim${sName ? ` (${sName} — qarzga)` : ''}`, 'ok')
       onClose()
     } catch (err: any) {
       toast(err?.message || 'Saqlashda xato', 'err')
@@ -297,7 +307,11 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
                 <input className="input" value={r.name} onChange={(e) => upd(i, { name: e.target.value })} disabled={!!r.existingId} style={{ fontWeight: 700 }} />
               </div>
               <div className="row" style={{ gap: 6 }}>
-                {r.existingId && <span className="badge ok">Bazada bor — faqat qoldiq qo'shiladi</span>}
+                {r.existingId && (() => {
+                  const ex = products.find((x) => x.id === r.existingId)
+                  const changed = !!ex && (r.priceUzs !== ex.priceUzs || r.costUsd !== ex.costUsd)
+                  return <span className="badge ok">Bazada bor{changed ? ` — narx yangilanadi (hozir ${num(ex!.priceUzs)} so'm)` : ''}{r.qty > 0 ? ' — qoldiq qo\'shiladi' : ''}</span>
+                })()}
                 {r.confidence !== 'yuqori' && <span className={`badge ${r.confidence === 'past' ? 'out' : 'low'}`}>Ishonch: {r.confidence}</span>}
                 {r.note && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.note}</span>}
               </div>
@@ -314,15 +328,14 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                   <div className="field"><label>Shtrix-kod</label><input className="input" value={r.barcode} onChange={(e) => upd(i, { barcode: e.target.value })} /></div>
-                  <div className="field"><label>Sotuv (so'm) · marja {pct(marja(r.priceUzs, costUzs(r.costUsd, settings.kurs)))}</label>
-                    <input className="input" type="number" value={r.priceUzs || ''} onChange={(e) => upd(i, { priceUzs: Number(e.target.value) })} />
-                  </div>
                 </div>
               )}
               <div className="grid3">
-                <div className="field"><label>Kirim ($)</label><input className="input" type="number" step="0.01" value={r.costUsd || ''} onChange={(e) => upd(i, { costUsd: Number(e.target.value) })} /></div>
+                <div className="field"><label>Kirim ($) · {num(costUzs(r.costUsd, settings.kurs))} so'm</label><input className="input" type="number" step="0.01" value={r.costUsd || ''} onChange={(e) => upd(i, { costUsd: Number(e.target.value) })} /></div>
                 <div className="field"><label>Miqdor</label><input className="input" type="number" value={r.qty || ''} onChange={(e) => upd(i, { qty: Number(e.target.value) })} /></div>
-                <div className="field"><label>Tannarx (so'm)</label><div className="input" style={{ background: '#f8fafc' }}>{num(costUzs(r.costUsd, settings.kurs))}</div></div>
+                <div className="field"><label>Sotuv (so'm) · marja {pct(marja(r.priceUzs, costUzs(r.costUsd, settings.kurs)))}</label>
+                  <input className="input" type="number" value={r.priceUzs || ''} onChange={(e) => upd(i, { priceUzs: Number(e.target.value) })} />
+                </div>
               </div>
             </div>
           ))}
