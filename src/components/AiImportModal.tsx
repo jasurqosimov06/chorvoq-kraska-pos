@@ -27,9 +27,10 @@ interface Draft {
 }
 
 // Excel ustun nomlari (kichik harf, bo'shliqsiz solishtiriladi)
-const COLS: Record<string, keyof Draft> = {
+const COLS: Record<string, keyof Draft | 'priceUsd'> = {
   nomi: 'name', guruh: 'family', kategoriya: 'category', brend: 'brand', hajm: 'size', birlik: 'unit',
   shtrixkod: 'barcode', miqdor: 'qty', 'kirim($)': 'costUsd', kirim: 'costUsd', "sotuv(so'm)": 'priceUzs', sotuv: 'priceUzs',
+  'sotuv($)': 'priceUsd', // dollarda — import paytidagi kurs bo'yicha so'mga o'giriladi
 }
 
 function findExisting(products: Product[], barcode: string, name: string): number | null {
@@ -96,9 +97,11 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
         for (const [k, v] of Object.entries(r)) {
           const f = COLS[k.toLowerCase().replace(/[\s-]/g, '')]
           if (!f) continue
-          d[f] = ['qty', 'costUsd', 'priceUzs'].includes(f) ? Number(String(v).replace(',', '.')) || 0 : String(v).trim()
+          d[f] = ['qty', 'costUsd', 'priceUzs', 'priceUsd'].includes(f) ? Number(String(v).replace(',', '.')) || 0 : String(v).trim()
         }
         if (!UNITS.includes(d.unit)) d.unit = 'dona'
+        if (!d.priceUzs && d.priceUsd) d.priceUzs = Math.ceil(costUzs(d.priceUsd, settings.kurs) / 100) * 100
+        delete d.priceUsd
         return d
       }).filter((d) => d.name)
       if (!list.length) { toast("Faylda tovar topilmadi (birinchi qatorda 'Nomi' ustuni bo'lsin)", 'err'); return }
@@ -248,7 +251,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
           <div className="card" style={{ padding: 12 }}>
             <b>2. Excel fayldan</b>
             <div style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 8px' }}>
-              Ustunlar: Nomi, Guruh, Kategoriya, Brend, Hajm, Birlik, Shtrix-kod, Miqdor, Kirim ($), Sotuv (so'm)
+              Ustunlar: Nomi, Guruh, Kategoriya, Brend, Hajm, Birlik, Shtrix-kod, Miqdor, Kirim ($), Sotuv (so'm) yoki Sotuv ($)
             </div>
             <label className="btn">📄 Fayl tanlash<input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} /></label>
           </div>
