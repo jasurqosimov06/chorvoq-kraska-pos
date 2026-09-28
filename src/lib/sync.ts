@@ -120,6 +120,7 @@ export async function pushAll() {
   try { await pushSettings() } catch {}
 }
 export async function pullAll() {
+  try { await applyRemoteReset() } catch {}
   for (const t of DEXIE_TABLES) { try { await pullTable(t) } catch (e) { /* offline */ } }
   try { await pullSettings() } catch {}
 }
@@ -139,17 +140,33 @@ export async function pendingCount(): Promise<number> {
   return n
 }
 
-// Boshqa foydalanuvchi/rol kirganda: oldingisining lokal nusxasini (tannarx va h.k.) o'chiramiz
-async function resetLocalFor(owner: string) {
-  if (localStorage.getItem('sync_owner') === owner) return
-  try { await pushAll() } catch {}
+async function clearLocalData() {
   for (const t of DEXIE_TABLES) {
     await (db as any)[t].clear()
     localStorage.removeItem(`push_${t}`)
     localStorage.removeItem(`pull_${t}`)
   }
   localStorage.removeItem('push_settings')
+}
+
+// Boshqa foydalanuvchi/rol kirganda: oldingisining lokal nusxasini (tannarx va h.k.) o'chiramiz
+async function resetLocalFor(owner: string) {
+  if (localStorage.getItem('sync_owner') === owner) return
+  try { await pushAll() } catch {}
+  await clearLocalData()
   localStorage.setItem('sync_owner', owner)
+}
+
+// Baza tozalangan bo'lsa (supabase/tozalash.sql → settings.data.resetId o'zgaradi),
+// lokal nusxani bulutga YUBORMASDAN o'chiramiz — aks holda eski ma'lumot qaytib keladi
+async function applyRemoteReset() {
+  if (!supabase) return
+  const { data, error } = await supabase.from('settings').select('data').eq('id', 'main').maybeSingle()
+  if (error) return
+  const rid = data?.data?.resetId as string | undefined
+  if (!rid || localStorage.getItem('reset_id') === rid) return
+  await clearLocalData()
+  localStorage.setItem('reset_id', rid)
 }
 
 const refetchTimers: Record<string, any> = {}
@@ -162,6 +179,7 @@ export async function startSync(userId: string, userRole: SyncRole) {
   if (!supabaseEnabled || !supabase || started) return
   started = true
   role = userRole
+  try { await applyRemoteReset() } catch {}
   await resetLocalFor(`${userId}:${userRole}`)
 
   // 1) Boshlang'ich pull (bulutdagi hamma narsani olib kelamiz)
