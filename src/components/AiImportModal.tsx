@@ -192,6 +192,29 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
   const chosen = rows?.filter((r) => r.on) ?? []
   const totalUsd = chosen.reduce((s, r) => s + r.qty * r.costUsd, 0)
 
+  // Ta'minotchi / sana / marja — fayl tanlashdan OLDIN ham, ko'rib chiqishda ham ko'rinadi
+  const headFields = (
+    <div className="grid3">
+      <div className="field"><label>Ta'minotchi (qarzga yoziladi)</label>
+        <input className="input" list="sup-list" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="masalan: DDER TOOLS"
+          style={supplierName.trim() ? undefined : { borderColor: 'var(--amber)' }} />
+        <datalist id="sup-list">{suppliers.map((s) => <option key={s.id} value={s.name} />)}</datalist>
+      </div>
+      <div className="field"><label>Nakladnoy sanasi</label><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+      <div className="field"><label>Marja % (narx = tannarx ÷ {((100 - margin) / 100).toFixed(2)})</label>
+        <div className="row" style={{ flexWrap: 'nowrap' }}>
+          <input className="input" type="number" min={0} max={95} value={margin} onChange={(e) => setMargin(Number(e.target.value))} />
+          {rows && <button className="btn sm" onClick={applyMargin}>Qo'llash</button>}
+        </div>
+      </div>
+    </div>
+  )
+  const supplierHint = (
+    <div style={{ fontSize: 12, color: supplierName.trim() ? 'var(--muted)' : 'var(--amber)', marginTop: 4 }}>
+      {supplierName.trim() ? `Kirim "${supplierName.trim()}" ga qarz bo'lib yoziladi, kassadan pul chiqmaydi.` : "Ta'minotchi yozilmasa — kirim qarzsiz (boshlang'ich qoldiq) bo'ladi."}
+    </div>
+  )
+
   return (
     <Modal
       title="📥 Tovar kiritish (rasm / Excel)"
@@ -217,8 +240,13 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
     >
       {!rows && (
         <>
+          <div className="card" style={{ padding: 12, background: '#f8fafc' }}>
+            <b>1. Nakladnoy ma'lumotlari</b>
+            {headFields}
+            {supplierHint}
+          </div>
           <div className="card" style={{ padding: 12 }}>
-            <b>Excel fayldan</b>
+            <b>2. Excel fayldan</b>
             <div style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 8px' }}>
               Ustunlar: Nomi, Guruh, Kategoriya, Brend, Hajm, Birlik, Shtrix-kod, Miqdor, Kirim ($), Sotuv (so'm)
             </div>
@@ -226,7 +254,7 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
           </div>
           {supabaseEnabled && (
             <div className="card" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <b>Rasmdan (AI)</b>
+              <b>2. yoki rasmdan (AI)</b>
               <div style={{ fontSize: 13, color: 'var(--muted)' }}>
                 Tovar yorlig'i, nakladnoy yoki narxlar ro'yxatini rasmga oling (ko'pi bilan {MAX_IMAGES} ta). Matn aniq ko'rinsin.
               </div>
@@ -253,25 +281,11 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
       {rows && (
         <>
           <div className="card" style={{ padding: 12, background: '#f8fafc' }}>
-            <div className="grid3">
-              <div className="field"><label>Ta'minotchi (qarzga yoziladi)</label>
-                <input className="input" list="sup-list" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="bo'sh — boshlang'ich qoldiq" />
-                <datalist id="sup-list">{suppliers.map((s) => <option key={s.id} value={s.name} />)}</datalist>
-              </div>
-              <div className="field"><label>Sana</label><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-              <div className="field"><label>Marja % (narx = tannarx ÷ {((100 - margin) / 100).toFixed(2)})</label>
-                <div className="row" style={{ flexWrap: 'nowrap' }}>
-                  <input className="input" type="number" min={0} max={95} value={margin} onChange={(e) => setMargin(Number(e.target.value))} />
-                  <button className="btn sm" onClick={applyMargin}>Qo'llash</button>
-                </div>
-              </div>
-            </div>
+            {headFields}
             <div className="row" style={{ marginTop: 8, fontSize: 14 }}>
               <span>{chosen.length} ta tovar · Jami: <b>{usd(totalUsd)}</b> = <b>{num(costUzs(totalUsd, settings.kurs))} so'm</b> (kurs {num(settings.kurs)})</span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-              {supplierName.trim() ? `Kirim "${supplierName.trim()}" ga qarz bo'lib yoziladi, kassadan pul chiqmaydi.` : "Ta'minotchi ko'rsatilmasa — pulsiz boshlang'ich qoldiq."}
-            </div>
+            {supplierHint}
           </div>
           {rows.map((r, i) => (
             <div key={i} className={`ai-card ${r.on ? '' : 'off'}`}>
