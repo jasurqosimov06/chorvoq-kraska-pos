@@ -38,9 +38,10 @@ function findExisting(products: Product[], barcode: string, name: string): numbe
   return hit?.id ?? null
 }
 
-// Ustama: tannarx × (1 + %), 100 so'mga yuqoriga yaxlitlanadi
-function withMarkup(costUsd: number, kurs: number, markupPct: number): number {
-  return Math.ceil((costUzs(costUsd, kurs) * (1 + markupPct / 100)) / 100) * 100
+// Marja sotuv narxidan: narx = tannarx ÷ (1 − marja%). 40% → tannarx ÷ 0.6. 100 so'mga yuqoriga yaxlitlanadi
+function withMargin(costUsd: number, kurs: number, marginPct: number): number {
+  const m = Math.min(Math.max(marginPct, 0), 95) / 100
+  return Math.ceil(costUzs(costUsd, kurs) / (1 - m) / 100) * 100
 }
 
 export function AiImportModal({ onClose }: { onClose: () => void }) {
@@ -54,15 +55,15 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false)
   const [supplierName, setSupplierName] = useState('')
   const [date, setDate] = useState(today())
-  const [markup, setMarkup] = useState(40)
+  const [margin, setMargin] = useState(40)
 
   const categories = Array.from(new Set([...CATEGORIES, ...products.map((p) => p.category).filter(Boolean)]))
 
   function toDrafts(list: Omit<Draft, 'on' | 'existingId'>[]): Draft[] {
     return list.map((p) => {
       const existingId = findExisting(products, p.barcode, p.name)
-      // Sotuv narxi berilmagan bo'lsa — tannarx + ustama
-      const priceUzs = p.priceUzs || (p.costUsd ? withMarkup(p.costUsd, settings.kurs, markup) : 0)
+      // Sotuv narxi berilmagan bo'lsa — belgilangan marja bo'yicha
+      const priceUzs = p.priceUzs || (p.costUsd ? withMargin(p.costUsd, settings.kurs, margin) : 0)
       return { ...p, priceUzs, on: !existingId || p.qty > 0, existingId }
     })
   }
@@ -140,9 +141,9 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
     setRows((rs) => rs && rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   }
 
-  function applyMarkup() {
-    setRows((rs) => rs && rs.map((r) => (r.existingId || !r.costUsd ? r : { ...r, priceUzs: withMarkup(r.costUsd, settings.kurs, markup) })))
-    toast(`Sotuv narxlari: tannarx + ${markup}%`, 'ok')
+  function applyMargin() {
+    setRows((rs) => rs && rs.map((r) => (r.existingId || !r.costUsd ? r : { ...r, priceUzs: withMargin(r.costUsd, settings.kurs, margin) })))
+    toast(`Sotuv narxlari: marja ${margin}%`, 'ok')
   }
 
   async function save() {
@@ -256,10 +257,10 @@ export function AiImportModal({ onClose }: { onClose: () => void }) {
                 <datalist id="sup-list">{suppliers.map((s) => <option key={s.id} value={s.name} />)}</datalist>
               </div>
               <div className="field"><label>Sana</label><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-              <div className="field"><label>Ustama (tannarx + %)</label>
+              <div className="field"><label>Marja % (narx = tannarx ÷ {((100 - margin) / 100).toFixed(2)})</label>
                 <div className="row" style={{ flexWrap: 'nowrap' }}>
-                  <input className="input" type="number" value={markup} onChange={(e) => setMarkup(Number(e.target.value))} />
-                  <button className="btn sm" onClick={applyMarkup}>Qo'llash</button>
+                  <input className="input" type="number" min={0} max={95} value={margin} onChange={(e) => setMargin(Number(e.target.value))} />
+                  <button className="btn sm" onClick={applyMargin}>Qo'llash</button>
                 </div>
               </div>
             </div>
